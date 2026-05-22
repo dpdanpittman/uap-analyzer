@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "MCP server for analyzing UAP / Department of War release material (videos + PDFs + photos)"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
+license = { text = "AGPL-3.0-or-later" }
 authors = [{ name = "Dan Pittman", email = "dpdanpittman@gmail.com" }]
 
 dependencies = [

@@ -82,4 +82,4 @@ tests/
 
 ## License
 
-MIT. Personal/analyst use.
+[GNU AGPLv3 or later](./LICENSE). Open-source, copyleft for network use. Personal/analyst use intended; anyone running this as a network service must publish their modifications under the same license.
