@@ -1,0 +1,23 @@
+services:
+  uap-analyzer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: uap-analyzer:latest
+    container_name: uap-analyzer
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://192.168.6.56:11434}
+      OLLAMA_TEXT_MODEL: ${OLLAMA_TEXT_MODEL:-qwq:32b}
+      OLLAMA_VISION_MODEL: ${OLLAMA_VISION_MODEL:-llama3.2-vision:11b}
+      OLLAMA_TIMEOUT: ${OLLAMA_TIMEOUT:-300}
+      # Container-internal paths — fixed. The host-side path is controlled by
+      # UAP_HOST_DATA_DIR (used only as the bind-mount source below).
+      UAP_DATA_DIR: /srv/uap-data
+      UAP_CACHE_DIR: /srv/uap-data/.cache
+      UAP_HOST: ${UAP_HOST:-0.0.0.0}
+      UAP_PORT: ${UAP_PORT:-3260}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ${UAP_HOST_DATA_DIR:-/srv/uap-data}:/srv/uap-data

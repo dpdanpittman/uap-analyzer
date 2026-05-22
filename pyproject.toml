@@ -1,0 +1,56 @@
+[project]
+name = "uap-analyzer"
+version = "0.1.0"
+description = "MCP server for analyzing UAP / Department of War release material (videos + PDFs + photos)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Dan Pittman", email = "dpdanpittman@gmail.com" }]
+
+dependencies = [
+    # MCP server
+    "mcp>=1.2.0",
+    # HTTP server (FastMCP uses Starlette under the hood, but we also expose /healthz)
+    "uvicorn>=0.30",
+    "starlette>=0.37",
+    # Ollama client
+    "ollama>=0.3.3",
+    # HTTP client (async, used directly for ollama API)
+    "httpx>=0.28",
+    # PDF
+    "pdfplumber>=0.11.0",
+    "pypdf>=4.3.0",
+    "pdf2image>=1.17.0",
+    "pytesseract>=0.3.10",
+    # Images
+    "Pillow>=10.4.0",
+    # ffmpeg wrapper (we mostly shell out, but this is handy)
+    "ffmpeg-python>=0.2.0",
+    # Utility
+    "pydantic>=2.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6.0",
+    "mypy>=1.10",
+]
+
+[project.scripts]
+uap-analyzer = "uap_analyzer.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/uap_analyzer"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+ignore = ["E501"]  # line length handled by formatter

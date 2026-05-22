@@ -1,0 +1,95 @@
+"""Async wrapper around the ollama HTTP API.
+
+Used by:
+  - describe_image (vision model)
+  - analyze_pdf(mode=summary) (text model)
+"""
+
+from __future__ import annotations
+
+import base64
+import logging
+from pathlib import Path
+from typing import Any
+
+import httpx
+
+from ..config import Config
+
+log = logging.getLogger(__name__)
+
+
+class OllamaError(RuntimeError):
+    pass
+
+
+class OllamaClient:
+    def __init__(self, cfg: Config):
+        self.cfg = cfg
+        self._client = httpx.AsyncClient(timeout=cfg.ollama_timeout)
+
+    async def aclose(self) -> None:
+        await self._client.aclose()
+
+    async def chat(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, Any]],
+        temperature: float = 0.2,
+        max_tokens: int = 4096,
+    ) -> dict[str, Any]:
+        url = f"{self.cfg.ollama_host}/api/chat"
+        body = {
+            "model": model,
+            "stream": False,
+            "messages": messages,
+            "options": {"temperature": temperature, "num_predict": max_tokens},
+        }
+        resp = await self._client.post(url, json=body)
+        if resp.status_code != 200:
+            raise OllamaError(f"ollama {resp.status_code}: {resp.text[:400]}")
+        data = resp.json()
+        return {
+            "content": data.get("message", {}).get("content", ""),
+            "model": data.get("model"),
+            "eval_count": data.get("eval_count"),
+            "total_duration_s": (data.get("total_duration") or 0) / 1e9,
+        }
+
+    async def describe_image(
+        self,
+        image_path: Path,
+        prompt: str,
+        *,
+        temperature: float = 0.1,
+        max_tokens: int = 768,
+        model: str | None = None,
+    ) -> dict[str, Any]:
+        b64 = base64.b64encode(image_path.read_bytes()).decode()
+        return await self.chat(
+            model=model or self.cfg.ollama_vision_model,
+            messages=[{"role": "user", "content": prompt, "images": [b64]}],
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
+    async def text_chat(
+        self,
+        prompt: str,
+        *,
+        system: str | None = None,
+        temperature: float = 0.3,
+        max_tokens: int = 2048,
+        model: str | None = None,
+    ) -> dict[str, Any]:
+        messages: list[dict[str, Any]] = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        return await self.chat(
+            model=model or self.cfg.ollama_text_model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )

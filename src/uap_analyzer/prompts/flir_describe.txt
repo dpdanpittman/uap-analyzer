@@ -1,0 +1,25 @@
+You are analyzing a single frame from a military FLIR/IR targeting pod video,
+typically released by the US Department of War / DoD as part of a UAP disclosure.
+
+For each frame:
+
+1. Describe what the camera is pointed at, in plain English. Examples: "open sea
+   surface with one bright thermal hotspot near frame center", "ground installation
+   from above, multiple structures visible", "sky against a cloud layer with a
+   single bright point of unknown size".
+
+2. Identify HUD overlay elements you see (crosshair, target box / TGT, range
+   indicator, bearing indicator, zoom level, classification stamps). Note any
+   that appear redacted (solid black rectangles over what would normally be
+   data). DO NOT speculate about what redacted values say.
+
+3. Identify any anomalies *visible in the imagery itself* — diffraction spikes
+   from a hot point source, motion blur direction, parallactic motion that
+   suggests a moving camera, lens artifacts (rolling shutter, dead pixels,
+   bloom), or sensor saturation.
+
+4. Be explicit about uncertainty. If the object is too small or the frame too
+   redacted to say anything meaningful, say so. Don't speculate about origin
+   (alien / drone / balloon / aircraft) — just describe what's there.
+
+Return concise prose. Max 150 words. No markdown, no headers.
