@@ -1,0 +1,44 @@
+---
+import Base from '../../layouts/Base.astro';
+---
+<Base title="Docs" description="Documentation for uap-analyzer — quickstart, architecture, deployment.">
+
+  <div class="max-w-5xl mx-auto px-6 py-16">
+
+    <section class="mb-12">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="stamp text-accent">// DOCS</span>
+      </div>
+      <h1 class="text-4xl font-bold mb-4 leading-tight text-text">Documentation</h1>
+      <p class="text-base text-muted leading-relaxed max-w-2xl prose-body">
+        From "what is this thing" to "running it on your LAN against a fresh war.gov tranche."
+      </p>
+    </section>
+
+    <section class="grid md:grid-cols-3 gap-4">
+      <a href="/docs/quickstart" class="block bg-panel rounded-sm p-5 border border-border no-underline hover:border-accent transition group">
+        <p class="text-xs font-mono text-muted mb-2 tracking-widest group-hover:text-accent">// START HERE</p>
+        <h2 class="text-lg font-semibold mb-2 text-text font-mono">Quickstart</h2>
+        <p class="text-sm text-muted leading-relaxed m-0 prose-body">
+          Get the container running, point it at a corpus, register with Claude Code, call the first tool.
+        </p>
+      </a>
+      <a href="/docs/architecture" class="block bg-panel rounded-sm p-5 border border-border no-underline hover:border-accent-green transition group">
+        <p class="text-xs font-mono text-muted mb-2 tracking-widest group-hover:text-accent-green">// FOUNDATIONS</p>
+        <h2 class="text-lg font-semibold mb-2 text-text font-mono">Architecture</h2>
+        <p class="text-sm text-muted leading-relaxed m-0 prose-body">
+          Container + ollama + corpus bind-mount + SQLite/FTS5 cache. The shape of the box.
+        </p>
+      </a>
+      <a href="/docs/deployment" class="block bg-panel rounded-sm p-5 border border-border no-underline hover:border-warm transition group">
+        <p class="text-xs font-mono text-muted mb-2 tracking-widest group-hover:text-warm">// OPERATIONS</p>
+        <h2 class="text-lg font-semibold mb-2 text-text font-mono">Deployment</h2>
+        <p class="text-sm text-muted leading-relaxed m-0 prose-body">
+          Docker compose, bootstrap script, the FastMCP transport-security gotcha you'll hit on first run.
+        </p>
+      </a>
+    </section>
+
+  </div>
+
+</Base>

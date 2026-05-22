@@ -1,0 +1,185 @@
+---
+import Base from '../layouts/Base.astro';
+---
+<Base title="uap-analyzer">
+
+  <!-- HEADER STRIP — classification + coordinates -->
+  <section class="border-b border-border bg-bg-soft/40">
+    <div class="max-w-5xl mx-auto px-6 py-2 flex items-center justify-between text-[10px] font-mono tracking-widest text-muted/70">
+      <span class="text-accent-green">// SYSTEM ONLINE</span>
+      <span class="hidden sm:inline">// CORPUS: 157 ITEMS INDEXED · FTS5 LIVE</span>
+      <span>// 37.2431°N 115.7930°W <span class="redacted">XXXX</span></span>
+    </div>
+  </section>
+
+  <section class="max-w-5xl mx-auto px-6 pt-16 pb-12">
+    <div class="flex items-start gap-3 mb-6">
+      <span class="stamp text-accent">// INVESTIGATION · v0.1 · α</span>
+      <span class="stamp text-warm stamp-rotate hidden sm:inline-flex">CONFIDENTIAL</span>
+      <span class="stamp text-accent-green hidden md:inline-flex">UNCLASSIFIED // FOR ANALYST USE</span>
+    </div>
+
+    <h1 class="text-5xl md:text-6xl font-bold leading-[1.05] mb-6 text-text glow-amber">
+      <span class="text-accent">uap-</span>analyzer
+    </h1>
+
+    <p class="text-xl text-text leading-snug max-w-3xl mb-4 font-mono">
+      The analyst's tool for working through declassified UAP releases.
+    </p>
+    <p class="text-base text-muted leading-relaxed max-w-3xl mb-8 prose-body">
+      An MCP server that ingests the U.S. Department of War's PURSUE-era UAP corpus — videos, PDFs, photos — and exposes the heavy work (frame extraction, FLIR vision describe, PDF OCR, FTS5 search) as fast typed tools your LLM session can call. No cloud APIs in the analysis path. The chat never has to load a 274 MB MP4 to know what's in it.
+    </p>
+
+    <div class="flex flex-wrap gap-3 mb-12 font-mono text-sm">
+      <a href="/docs/quickstart" class="bg-accent text-bg px-5 py-2.5 rounded-sm font-semibold no-underline hover:opacity-90 transition tracking-widest">QUICKSTART →</a>
+      <a href="/tools" class="border border-border px-5 py-2.5 rounded-sm font-semibold text-text no-underline hover:bg-panel hover:border-accent/40 transition tracking-widest">TOOL REFERENCE</a>
+      <a href="/findings" class="border border-border px-5 py-2.5 rounded-sm font-semibold text-text no-underline hover:bg-panel hover:border-accent-green/40 transition tracking-widest">WORKED FINDINGS</a>
+      <a href="https://github.com/dpdanpittman/uap-analyzer" class="border border-border px-5 py-2.5 rounded-sm font-semibold text-text no-underline hover:bg-panel hover:border-muted-bright transition tracking-widest">GITHUB</a>
+    </div>
+
+    <!-- Failure-mode call-out, framed like a sensor readout -->
+    <div class="border border-accent/30 bg-bg-soft/40 max-w-3xl relative">
+      <div class="absolute -top-3 left-4 bg-bg px-2 text-[10px] font-mono tracking-widest text-accent">
+        // SECTION 01 · THE FAILURE MODE
+      </div>
+      <div class="p-6">
+        <p class="text-muted leading-relaxed prose-body">
+          The war.gov release pages drop hundreds of files per tranche — FLIR clips, redacted mission reports, scanned 1940s memos, FBI photo packets. The honest interactive workflow is: download everything, open files one at a time, ask an LLM "what's in this?" — and burn tens of thousands of context tokens loading raw bytes. <span class="text-text">The chat shouldn't be the substrate that holds raw media.</span> The analyzer is.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRIMITIVES — terminal/sensor card grid -->
+  <section class="max-w-5xl mx-auto px-6 py-12">
+    <div class="flex items-baseline justify-between mb-6 font-mono">
+      <h2 class="text-2xl font-bold text-text">/// THREE PRIMITIVES</h2>
+      <span class="text-[10px] text-muted tracking-widest hidden sm:inline">SECTION 02</span>
+    </div>
+    <div class="grid md:grid-cols-3 gap-4">
+      <div class="bg-panel rounded-sm p-5 border border-border hover:border-accent/40 transition">
+        <p class="text-xs font-mono text-accent mb-2 tracking-widest">[ P-01 ] CORPUS</p>
+        <h3 class="font-semibold mb-2 text-text font-mono">Filesystem-rooted corpus</h3>
+        <p class="text-sm text-muted leading-relaxed prose-body">
+          Drop releases under <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">~/uap-data/Release_N/</code>. The server indexes everything on rescan — videos to <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">ffprobe</code>, PDFs to <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">pdfplumber</code> + Tesseract OCR fallback, photos to <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">Pillow</code>. SQLite caches everything.
+        </p>
+      </div>
+      <div class="bg-panel rounded-sm p-5 border border-border hover:border-accent-green/40 transition">
+        <p class="text-xs font-mono text-accent-green mb-2 tracking-widest">[ P-02 ] INFERENCE</p>
+        <h3 class="font-semibold mb-2 text-text font-mono">Local-only inference</h3>
+        <p class="text-sm text-muted leading-relaxed prose-body">
+          Vision-describe runs through a local <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">ollama</code> instance — <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">llama3.2-vision:11b</code> for frames, <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">qwq:32b</code> for text. No cloud APIs in the analysis path. The corpus + your analyst notes stay on your LAN.
+        </p>
+      </div>
+      <div class="bg-panel rounded-sm p-5 border border-border hover:border-warm/40 transition">
+        <p class="text-xs font-mono text-warm mb-2 tracking-widest">[ P-03 ] RETRIEVAL</p>
+        <h3 class="font-semibold mb-2 text-text font-mono">FTS5 full-text search</h3>
+        <p class="text-sm text-muted leading-relaxed prose-body">
+          Once <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">index_corpus</code> has run, <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">search_corpus("range fouler")</code> spans every PDF in the tranche in milliseconds. bm25-ranked, with snippets. Find the mission report that matches the FLIR clip.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- THE RULE — wide callout with FLIR-frame border -->
+  <section class="max-w-5xl mx-auto px-6 py-8">
+    <div class="border border-accent-green/30 bg-bg-soft/30 relative">
+      <span class="absolute -top-3 left-4 bg-bg px-2 text-[10px] font-mono tracking-widest text-accent-green">
+        // RULE · CORPUS-FIRST
+      </span>
+      <div class="p-8">
+        <p class="text-muted leading-relaxed mb-3 prose-body">
+          The chat session is the wrong place to hold raw media. The substrate is. Every tool returns text or structured JSON; raw video stays in the container, raw OCR stays in the cache, raw frames sit on disk until you ask for one.
+        </p>
+        <p class="text-muted leading-relaxed prose-body">
+          When you read the analyst notes in <a href="/findings" class="text-accent no-underline hover:underline">Findings</a>, you're reading distilled output. The mile-deep media that produced them sits on the LAN, not in your transcript.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ROUTING -->
+  <section class="max-w-5xl mx-auto px-6 py-12">
+    <div class="flex items-baseline justify-between mb-6 font-mono">
+      <h2 class="text-2xl font-bold text-text">/// WHERE IT SLOTS IN</h2>
+      <span class="text-[10px] text-muted tracking-widest hidden sm:inline">SECTION 03</span>
+    </div>
+    <p class="text-muted leading-relaxed mb-6 prose-body max-w-3xl">
+      One MCP server, registered with Claude Code via <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">claude mcp add --transport http</code>. From there it's just a set of typed tools the LLM session can call by name.
+    </p>
+    <div class="grid md:grid-cols-2 gap-4">
+      <a href="/tools" class="block bg-panel rounded-sm p-5 border border-border no-underline hover:border-accent transition group">
+        <p class="text-xs font-mono text-muted mb-2 tracking-widest group-hover:text-accent">// REFERENCE</p>
+        <h3 class="font-semibold mb-2 text-text font-mono">7 tools, ready</h3>
+        <p class="text-sm text-muted leading-relaxed m-0 prose-body">
+          <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">list_corpus</code>, <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">analyze_video</code>, <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">extract_frame</code>, <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">describe_image</code>, <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">analyze_pdf</code>, <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">search_corpus</code>, <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">index_corpus</code>.
+        </p>
+      </a>
+      <a href="/findings" class="block bg-panel rounded-sm p-5 border border-border no-underline hover:border-accent-green transition group">
+        <p class="text-xs font-mono text-muted mb-2 tracking-widest group-hover:text-accent-green">// WORKED EXAMPLES</p>
+        <h3 class="font-semibold mb-2 text-text font-mono">Four findings from Release 1</h3>
+        <p class="text-sm text-muted leading-relaxed m-0 prose-body">
+          A maritime tracking clip with a wake-event. A NASA-logo placeholder file revealing a redaction-by-substitution pattern. A coastal-recon sensor anomaly. Federal LE witness statements from a Western US restricted zone.
+        </p>
+      </a>
+      <a href="/docs/architecture" class="block bg-panel rounded-sm p-5 border border-border no-underline hover:border-accent transition group">
+        <p class="text-xs font-mono text-muted mb-2 tracking-widest group-hover:text-accent">// DOCS</p>
+        <h3 class="font-semibold mb-2 text-text font-mono">Architecture</h3>
+        <p class="text-sm text-muted leading-relaxed m-0 prose-body">
+          Container + ollama + corpus bind-mount + SQLite/FTS5 cache. The "shape of the box" walk-through.
+        </p>
+      </a>
+      <a href="/docs/deployment" class="block bg-panel rounded-sm p-5 border border-border no-underline hover:border-warm transition group">
+        <p class="text-xs font-mono text-muted mb-2 tracking-widest group-hover:text-warm">// DOCS</p>
+        <h3 class="font-semibold mb-2 text-text font-mono">Deployment</h3>
+        <p class="text-sm text-muted leading-relaxed m-0 prose-body">
+          Run locally or on a LAN box. Docker compose + bootstrap script + the FastMCP transport-security gotcha you'll hit on first run.
+        </p>
+      </a>
+    </div>
+  </section>
+
+  <!-- 60-SECOND TOUR — sensor readout -->
+  <section class="max-w-5xl mx-auto px-6 py-12">
+    <div class="flex items-baseline justify-between mb-4 font-mono">
+      <h2 class="text-2xl font-bold text-text">/// 60-SECOND TOUR</h2>
+      <span class="text-[10px] text-muted tracking-widest hidden sm:inline">SECTION 04 · LIVE READOUT</span>
+    </div>
+    <div class="relative">
+      <div class="absolute -top-2 left-4 bg-bg px-2 text-[10px] font-mono tracking-widest text-accent-green flex items-center gap-2">
+        <span class="inline-block w-1.5 h-1.5 rounded-full bg-accent-green shadow-green-glow pulse-soft"></span>
+        TERMINAL · MCP TOOL CALLS
+      </div>
+      <pre class="bg-code-bg border border-accent/30 p-6 pt-7 rounded-sm text-sm overflow-x-auto leading-relaxed shadow-amber-glow"><code><span class="text-muted"># Once the analyzer is registered as an MCP server, your LLM session</span>
+<span class="text-muted"># calls these tools by name — e.g. inside Claude Code:</span>
+
+<span class="text-accent-green">&gt;</span> list_corpus(rescan=True)
+<span class="text-muted">→ &#123;data_dir: "/srv/uap-data", count: 157, fts_indexed: 88, items: [...]&#125;</span>
+
+<span class="text-accent-green">&gt;</span> search_corpus(query=<span class="text-accent">"range fouler"</span>, k=5)
+<span class="text-muted">→ [&#123;path: "Release_1/DOW-UAP-D44-...pdf", score: 1.84, snippet: "..."&#125;]</span>
+
+<span class="text-accent-green">&gt;</span> extract_frame(path=<span class="text-accent">"videos/DOD_111689090.mp4"</span>, timestamp=260, width=1600)
+<span class="text-muted">→ writes frame JPG to cache, returns path + dimensions</span>
+
+<span class="text-accent-green">&gt;</span> describe_image(path=<span class="text-accent">"reports/frames/DOD_111689090_t260.jpg"</span>, prompt=<span class="text-accent">"FLIR"</span>)
+<span class="text-muted">→ 3-5 sentence description with FLIR-anchored prompting</span></code></pre>
+    </div>
+  </section>
+
+  <!-- CLOSING QUOTE — heavy mono, redaction-bordered -->
+  <section class="max-w-5xl mx-auto px-6 py-16">
+    <div class="border-l-2 border-accent bg-bg-soft/30 p-8 relative">
+      <p class="absolute -top-3 left-6 bg-bg px-2 text-[10px] font-mono tracking-widest text-warm">
+        // OPERATOR NOTE
+      </p>
+      <p class="text-text leading-relaxed italic font-mono text-lg">
+        "Disclosure doesn't end at the download button. It ends when someone has actually read the corpus and can tell you what's in it."
+      </p>
+      <p class="text-muted leading-relaxed text-sm mt-3 font-mono">
+        — the analyzer is the gap between.
+      </p>
+    </div>
+  </section>
+
+</Base>

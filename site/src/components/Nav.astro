@@ -1,0 +1,44 @@
+---
+const links = [
+  { href: "/tools", label: "TOOLS" },
+  { href: "/findings", label: "FINDINGS" },
+  { href: "/docs", label: "DOCS" },
+];
+const path = Astro.url.pathname.replace(/\/$/, "") || "/";
+const isActive = (href: string) =>
+  href === "/" ? path === "/" : path === href || path.startsWith(href + "/");
+---
+<nav class="sticky top-0 z-30 border-b border-border bg-bg/95 backdrop-blur-md">
+  <div class="max-w-5xl mx-auto px-6 py-3 flex items-center justify-between gap-6">
+    <a href="/" class="flex items-center gap-3 group no-underline font-mono">
+      <span class="inline-block w-2 h-2 rounded-full bg-accent shadow-amber-glow pulse-soft"></span>
+      <span class="font-semibold tracking-tight text-text">uap-analyzer</span>
+      <span class="hidden sm:inline text-muted text-xs tracking-[0.18em]">/// CORPUS-INTERROGATION TOOLING</span>
+    </a>
+    <ul class="flex items-center gap-1 text-xs m-0 p-0 list-none font-mono">
+      {links.map((l) => {
+        const active = isActive(l.href);
+        return (
+          <li>
+            <a
+              href={l.href}
+              class={`px-3 py-1.5 rounded-sm tracking-widest transition-colors no-underline ${
+                active
+                  ? "text-accent bg-accent/10 border border-accent/30"
+                  : "text-muted hover:text-text hover:bg-panel border border-transparent"
+              }`}
+            >{l.label}</a>
+          </li>
+        );
+      })}
+      <li class="ml-2">
+        <a
+          href="https://github.com/dpdanpittman/uap-analyzer"
+          target="_blank"
+          rel="noopener"
+          class="px-3 py-1.5 rounded-sm text-xs tracking-widest text-muted no-underline border border-border hover:text-accent hover:border-accent/50 transition-colors"
+        >GITHUB →</a>
+      </li>
+    </ul>
+  </div>
+</nav>

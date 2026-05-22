@@ -1,0 +1,139 @@
+---
+import Base from '../layouts/Base.astro';
+---
+<Base title="Tools" description="The 7 MCP tools the uap-analyzer server exposes: list_corpus, analyze_video, extract_frame, describe_image, analyze_pdf, search_corpus, index_corpus.">
+
+  <div class="max-w-5xl mx-auto px-6 py-16">
+
+    <section class="mb-12">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="stamp text-accent-green">// TOOL REFERENCE</span>
+      </div>
+      <h1 class="text-4xl font-bold mb-4 leading-tight text-text">MCP tools</h1>
+      <p class="text-base text-muted leading-relaxed max-w-2xl prose-body">
+        Seven tools the LLM session can call by name. All return text or structured JSON; raw media stays in the container. Phase 3 tools are tracked but not yet implemented.
+      </p>
+    </section>
+
+    <section class="mb-12">
+      <div class="flex items-baseline justify-between mb-4 font-mono">
+        <h2 class="text-2xl font-bold text-text">/// PHASE 1 + 2 — LIVE</h2>
+        <span class="text-[10px] text-accent-green tracking-widest flex items-center gap-2 hidden sm:inline-flex">
+          <span class="inline-block w-1.5 h-1.5 rounded-full bg-accent-green shadow-green-glow pulse-soft"></span>
+          7 OPERATIONAL
+        </span>
+      </div>
+      <div class="space-y-5">
+
+        <div class="bg-panel rounded-sm p-5 border border-border hover:border-accent-green/60 transition">
+          <p class="text-xs font-mono text-accent-green mb-2 tracking-widest">[ T-01 ] CORPUS</p>
+          <h3 class="text-lg font-semibold text-accent mb-2 font-mono"><code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-base">list_corpus</code></h3>
+          <p class="text-sm text-muted leading-relaxed mb-2 prose-body">
+            List indexed files. <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">kind='video' | 'pdf' | 'image' | None</code>; <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">filter</code> substring match against the relative path; <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">rescan=True</code> walks <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">UAP_DATA_DIR</code> and refreshes the index first.
+          </p>
+          <p class="text-sm text-muted leading-relaxed prose-body">
+            Returns a flat array of <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">&#123;path, kind, size_bytes, duration_s, width, height, page_count&#125;</code> plus aggregate <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">count</code> and <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">fts_indexed</code> counters.
+          </p>
+        </div>
+
+        <div class="bg-panel rounded-sm p-5 border border-border hover:border-accent-green/60 transition">
+          <p class="text-xs font-mono text-accent-green mb-2 tracking-widest">[ T-02 ] VIDEO</p>
+          <h3 class="text-lg font-semibold text-accent mb-2 font-mono"><code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-base">analyze_video</code></h3>
+          <p class="text-sm text-muted leading-relaxed mb-2 prose-body">
+            <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">mode='metadata'</code> runs <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">ffprobe</code> and returns codec, bitrate, fps, duration, dimensions. <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">mode='frames'</code> samples N frames at evenly-spaced timestamps and caches them. <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">mode='describe'</code> additionally vision-describes each sampled frame via ollama.
+          </p>
+          <p class="text-sm text-muted leading-relaxed prose-body">
+            Default sampling: 4 frames at 25/50/75/100% of duration. FLIR-aware prompting suppresses the model's tendency to hallucinate HUD elements from training-data UAP footage.
+          </p>
+        </div>
+
+        <div class="bg-panel rounded-sm p-5 border border-border hover:border-accent-green/60 transition">
+          <p class="text-xs font-mono text-accent-green mb-2 tracking-widest">[ T-03 ] VIDEO</p>
+          <h3 class="text-lg font-semibold text-accent mb-2 font-mono"><code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-base">extract_frame</code></h3>
+          <p class="text-sm text-muted leading-relaxed mb-2 prose-body">
+            Pull a single frame at a given <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">timestamp</code> (seconds). <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">width</code> rescales; <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">return_base64=True</code> embeds the JPG in the tool response (use for frames the LLM should see).
+          </p>
+          <p class="text-sm text-muted leading-relaxed prose-body">
+            Cached. Re-requesting the same frame is fast. The cache lives under <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">UAP_CACHE_DIR/frames/</code>.
+          </p>
+        </div>
+
+        <div class="bg-panel rounded-sm p-5 border border-border hover:border-accent-green/60 transition">
+          <p class="text-xs font-mono text-accent-green mb-2 tracking-widest">[ T-04 ] IMAGE</p>
+          <h3 class="text-lg font-semibold text-accent mb-2 font-mono"><code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-base">describe_image</code></h3>
+          <p class="text-sm text-muted leading-relaxed mb-2 prose-body">
+            Vision-describe any photo or extracted frame. FLIR-format input gets a thermal-anchored prompt (grayscale, redaction-disclaimer, 3-5 sentence constraint). Non-FLIR uses a generic prompt; pass your own via <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">prompt</code>.
+          </p>
+          <p class="text-sm text-muted leading-relaxed prose-body">
+            Backed by <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">llama3.2-vision:11b</code> on a local ollama instance. ~10 s per frame. <em class="text-warm not-italic">Caveat:</em> the model is unreliable on this corpus — see the <a href="/findings" class="text-accent no-underline hover:underline">findings</a> for documented hallucinations.
+          </p>
+        </div>
+
+        <div class="bg-panel rounded-sm p-5 border border-border hover:border-accent-green/60 transition">
+          <p class="text-xs font-mono text-accent-green mb-2 tracking-widest">[ T-05 ] PDF</p>
+          <h3 class="text-lg font-semibold text-accent mb-2 font-mono"><code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-base">analyze_pdf</code></h3>
+          <p class="text-sm text-muted leading-relaxed mb-2 prose-body">
+            <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">mode='metadata'</code> returns pypdf metadata + page count. <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">mode='text'</code> pulls text via pdfplumber. <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">mode='ocr'</code> rasterizes pages at 200 dpi and OCRs via Tesseract. <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">mode='summary'</code> chains text/OCR → qwq:32b summarizer.
+          </p>
+          <p class="text-sm text-muted leading-relaxed prose-body">
+            Whenever extracted text exceeds 200 chars, the result is auto-upserted into the FTS5 index — every successful analyze becomes searchable.
+          </p>
+        </div>
+
+        <div class="bg-panel rounded-sm p-5 border border-border hover:border-accent-green/60 transition">
+          <p class="text-xs font-mono text-accent-green mb-2 tracking-widest">[ T-06 ] SEARCH</p>
+          <h3 class="text-lg font-semibold text-accent mb-2 font-mono"><code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-base">search_corpus</code></h3>
+          <p class="text-sm text-muted leading-relaxed mb-2 prose-body">
+            SQLite FTS5 bm25 search across every indexed PDF. Returns a ranked list with <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">«match»</code>-highlighted snippets. <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">k</code> controls the result count; <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">kind='pdf'</code> currently the only indexed kind.
+          </p>
+          <p class="text-sm text-muted leading-relaxed prose-body">
+            FTS5 syntax operators apply — <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">range AND fouler</code>, <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">"Persian Gulf"</code>, <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">strait*</code>, <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">NEAR(orb fly, 10)</code>.
+          </p>
+        </div>
+
+        <div class="bg-panel rounded-sm p-5 border border-border hover:border-accent-green/60 transition">
+          <p class="text-xs font-mono text-accent-green mb-2 tracking-widest">[ T-07 ] PIPELINE</p>
+          <h3 class="text-lg font-semibold text-accent mb-2 font-mono"><code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-base">index_corpus</code></h3>
+          <p class="text-sm text-muted leading-relaxed mb-2 prose-body">
+            Bulk text + OCR-fallback + FTS-index pipeline across every PDF in the corpus. <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">force=True</code> re-extracts even when cached; <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">ocr_fallback=False</code> skips Tesseract for text-only runs.
+          </p>
+          <p class="text-sm text-muted leading-relaxed prose-body">
+            Expect 5–15 minutes wall-clock for a fresh tranche (Tesseract is the bottleneck). Cached results are reused on subsequent runs — call this once after a new release lands.
+          </p>
+        </div>
+
+      </div>
+    </section>
+
+    <section class="mb-12">
+      <div class="flex items-baseline justify-between mb-4 font-mono">
+        <h2 class="text-2xl font-bold text-text">/// PHASE 3 — PLANNED</h2>
+        <span class="text-[10px] text-muted tracking-widest hidden sm:inline">4 BACKLOG</span>
+      </div>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="bg-panel/60 rounded-sm p-5 border border-border/60">
+          <p class="text-xs font-mono text-muted mb-2 tracking-widest">// PLANNED</p>
+          <h3 class="font-semibold text-text mb-2 font-mono"><code class="text-sm bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">audio_transcribe</code></h3>
+          <p class="text-sm text-muted leading-relaxed prose-body">whisper.cpp transcripts of pilot radio + crew voice in MP4 audio tracks. Highest-value Phase 3 candidate.</p>
+        </div>
+        <div class="bg-panel/60 rounded-sm p-5 border border-border/60">
+          <p class="text-xs font-mono text-muted mb-2 tracking-widest">// PLANNED</p>
+          <h3 class="font-semibold text-text mb-2 font-mono"><code class="text-sm bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">compare_to_known</code></h3>
+          <p class="text-sm text-muted leading-relaxed prose-body">Match candidate frames against a library of known mundane explanations (balloons, satellites, ATFLIR artifacts). Half-day build.</p>
+        </div>
+        <div class="bg-panel/60 rounded-sm p-5 border border-border/60">
+          <p class="text-xs font-mono text-muted mb-2 tracking-widest">// PLANNED</p>
+          <h3 class="font-semibold text-text mb-2 font-mono"><code class="text-sm bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">flir_hud_ocr</code></h3>
+          <p class="text-sm text-muted leading-relaxed prose-body">Extract HUD metadata (range, bearing, time) from FLIR overlays. Limited by how much is redacted on the war.gov releases.</p>
+        </div>
+        <div class="bg-panel/60 rounded-sm p-5 border border-border/60">
+          <p class="text-xs font-mono text-muted mb-2 tracking-widest">// PLANNED</p>
+          <h3 class="font-semibold text-text mb-2 font-mono"><code class="text-sm bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">detect_objects</code></h3>
+          <p class="text-sm text-muted leading-relaxed prose-body">YOLO per-frame object detection. Lower value on FLIR — wrong domain — but useful on the FBI/NASA photo packets.</p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+</Base>

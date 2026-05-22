@@ -1,0 +1,88 @@
+---
+import Base from '../../layouts/Base.astro';
+---
+<Base title="Architecture" description="How uap-analyzer is laid out: FastMCP server in a container, ollama at the edge, corpus on a bind mount, SQLite/FTS5 cache colocated with the data.">
+
+  <div class="max-w-5xl mx-auto px-6 py-16">
+
+    <section class="mb-10">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="stamp text-accent">// DOCS / ARCHITECTURE</span>
+      </div>
+      <h1 class="text-4xl font-bold mb-4 leading-tight text-text">Architecture</h1>
+      <p class="text-base text-muted leading-relaxed max-w-2xl prose-body">
+        The shape of the box. Three processes (LLM client, analyzer, ollama), one filesystem root, one SQLite file.
+      </p>
+    </section>
+
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3 text-accent font-mono">Diagram</h2>
+      <pre class="bg-code-bg border border-accent/20 p-5 rounded-sm text-sm overflow-x-auto leading-relaxed shadow-amber-glow"><code><span class="text-muted">┌──────────────────────┐</span>
+<span class="text-muted">│</span>  <span class="text-text">Claude Code session</span> <span class="text-muted">│</span>  <span class="text-muted">… or any MCP-aware client</span>
+<span class="text-muted">└─────────┬────────────┘</span>
+          <span class="text-muted">│  HTTP/streamable-MCP</span>
+          <span class="text-muted">▼</span>
+<span class="text-muted">┌──────────────────────┐</span>      <span class="text-muted">┌──────────────────────┐</span>
+<span class="text-muted">│</span> <span class="text-accent">uap-analyzer (3260)</span>  <span class="text-muted">│ ───→ │</span>  <span class="text-accent-green">ollama (11434)</span>    <span class="text-muted">│</span>
+<span class="text-muted">│</span>  FastMCP · Tools     <span class="text-muted">│ ←─── │</span>  llama3.2-vision    <span class="text-muted">│</span>
+<span class="text-muted">└─────────┬────────────┘</span>      <span class="text-muted">│</span>  qwq:32b            <span class="text-muted">│</span>
+          <span class="text-muted">│</span>                       <span class="text-muted">└──────────────────────┘</span>
+          <span class="text-muted">▼</span>
+<span class="text-muted">┌──────────────────────────────────────────┐</span>
+<span class="text-muted">│</span>  <span class="text-warm">/srv/uap-data/</span> (bind mount, ro for sources) <span class="text-muted">│</span>
+<span class="text-muted">│</span>    ├ Release_1/                            <span class="text-muted">│</span>
+<span class="text-muted">│</span>    ├ Release_2/                            <span class="text-muted">│</span>
+<span class="text-muted">│</span>    ├ videos/                               <span class="text-muted">│</span>
+<span class="text-muted">│</span>    └ .cache/                               <span class="text-muted">│</span>
+<span class="text-muted">│</span>        ├ frames/                           <span class="text-muted">│</span>
+<span class="text-muted">│</span>        ├ ocr/                              <span class="text-muted">│</span>
+<span class="text-muted">│</span>        └ corpus.sqlite (+ FTS5)            <span class="text-muted">│</span>
+<span class="text-muted">└──────────────────────────────────────────┘</span></code></pre>
+    </section>
+
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3 text-accent font-mono">Key invariants</h2>
+      <ul class="text-muted space-y-3 max-w-2xl ml-4 prose-body">
+        <li><span class="text-text">No raw media in responses.</span> Every tool returns text or structured JSON. <code class="bg-code-bg border border-code-border px-1 py-0.5 rounded text-xs text-accent">extract_frame</code> can return base64 JPEG <em>only</em> when explicitly requested.</li>
+        <li><span class="text-text">All paths relative to <code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-sm text-accent">UAP_DATA_DIR</code>.</span> The server resolves them and refuses anything that escapes the root.</li>
+        <li><span class="text-text">Tool calls update the cache.</span> Subsequent identical calls return cached results. <code class="bg-code-bg border border-code-border px-1 py-0.5 rounded text-xs text-accent">force=True</code> on <code class="bg-code-bg border border-code-border px-1 py-0.5 rounded text-xs text-accent">index_corpus</code> bypasses.</li>
+        <li><span class="text-text">All ollama calls go through <code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-sm text-accent">tools/ollama_client.py</code>.</span> Never hit the ollama HTTP API directly from tool handlers.</li>
+        <li><span class="text-text">No cloud APIs in the analysis path.</span> Hard architectural constraint. Inference stays on-LAN.</li>
+        <li><span class="text-text">Read-only against the corpus.</span> Tools never mutate source files. Cache + index live under <code class="bg-code-bg border border-code-border px-1 py-0.5 rounded text-xs text-accent">UAP_CACHE_DIR</code>.</li>
+      </ul>
+    </section>
+
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3 text-accent font-mono">Repo layout</h2>
+      <pre class="bg-code-bg border border-code-border p-4 rounded-sm text-sm overflow-x-auto leading-relaxed"><code><span class="text-muted">src/uap_analyzer/</span>
+  __main__.py           <span class="text-muted"># entrypoint</span>
+  <span class="text-accent">server.py</span>             <span class="text-muted"># FastMCP server, tool registration</span>
+  <span class="text-accent">config.py</span>             <span class="text-muted"># env config</span>
+  <span class="text-accent">corpus.py</span>             <span class="text-muted"># SQLite-backed file index + FTS5</span>
+  <span class="text-accent">tools/</span>
+    video.py            <span class="text-muted"># analyze_video, extract_frame</span>
+    pdf.py              <span class="text-muted"># analyze_pdf (text/ocr/summary)</span>
+    image.py            <span class="text-muted"># describe_image</span>
+    ollama_client.py    <span class="text-muted"># ollama HTTP wrapper</span>
+  <span class="text-accent">prompts/</span>
+    flir_describe.txt   <span class="text-muted"># FLIR-anchored prompt</span>
+<span class="text-muted">deploy/</span>
+  zaphod-bootstrap.sh   <span class="text-muted"># one-shot deploy script</span>
+  README.md             <span class="text-muted"># deploy runbook</span>
+<span class="text-muted">tests/</span>
+  test_smoke.py</code></pre>
+    </section>
+
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3 text-accent font-mono">Adding a new tool</h2>
+      <ol class="text-muted space-y-2 max-w-2xl ml-4 prose-body list-decimal">
+        <li>Implement in <code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-sm text-accent">src/uap_analyzer/tools/&lt;area&gt;.py</code> as a plain async function.</li>
+        <li>Register in <code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-sm text-accent">src/uap_analyzer/server.py</code> via the <code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-sm text-accent">@mcp.tool()</code> decorator.</li>
+        <li>Add a smoke test in <code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-sm text-accent">tests/test_smoke.py</code>.</li>
+        <li>Document on <a href="/tools" class="text-accent no-underline hover:underline">/tools</a>.</li>
+      </ol>
+    </section>
+
+  </div>
+
+</Base>

@@ -1,0 +1,99 @@
+---
+import Base from '../layouts/Base.astro';
+---
+<Base title="Findings" description="Worked-example analyst findings from the May 2026 war.gov PURSUE UAP release: a maritime FLIR tracking clip, a redacted-by-substitution placeholder, a sensor-format anomaly, and federal LE witness statements from a Western US restricted zone.">
+
+  <div class="max-w-5xl mx-auto px-6 py-16">
+
+    <section class="mb-12">
+      <div class="flex items-center gap-3 mb-3 flex-wrap">
+        <span class="stamp text-accent-green">// FINDINGS</span>
+        <span class="stamp text-warm stamp-rotate">ANALYST INTERPRETATION</span>
+      </div>
+      <h1 class="text-4xl font-bold mb-4 leading-tight text-text">Worked findings</h1>
+      <p class="text-base text-muted leading-relaxed max-w-2xl mb-4 prose-body">
+        Four analyst notes from sampling the May 2026 war.gov PURSUE Release 1 corpus (~157 items). Each is what one focused pass through one artifact produced. Not exhaustive — illustrative.
+      </p>
+      <div class="border-l-2 border-warm bg-classified/20 px-4 py-3 max-w-2xl">
+        <p class="text-xs text-muted leading-relaxed prose-body m-0">
+          <span class="text-warm font-mono tracking-widest">// DISCLAIMER</span> &nbsp;Analyst interpretation of publicly-declassified material. Hypotheses are flagged speculative. Cross-check before citing. Full source markdown lives in <a href="https://github.com/dpdanpittman/uap-analyzer/tree/main/reports" class="text-accent no-underline hover:underline">reports/</a>.
+        </p>
+      </div>
+    </section>
+
+    <section class="space-y-6">
+
+      <a href="https://github.com/dpdanpittman/uap-analyzer/blob/main/reports/dod_111689090_maritime_tracking.md" class="block bg-panel rounded-sm p-6 border border-border no-underline hover:border-accent transition group">
+        <div class="flex items-center gap-3 mb-3 flex-wrap">
+          <span class="text-[10px] font-mono text-accent tracking-widest">// 01 · MARITIME · MOST DETAIL-RICH</span>
+          <span class="text-[10px] font-mono text-muted/60 tracking-widest">DOD_111689090.mp4 · 4m 53s</span>
+        </div>
+        <h2 class="text-2xl font-bold text-text mb-3 font-mono group-hover:text-accent transition">DOD_111689090 — maritime FLIR tracking + wake event</h2>
+        <p class="text-muted leading-relaxed mb-3 prose-body">
+          A 4:53 IR/FLIR clip in which the cursor stays locked at center while the north-up reticle drifts — the sensor is gimbal-rotating on a target through 4 minutes of dense cloud. At t=260s the cloud clears to reveal an ocean surface with <span class="text-text">two objects connected by a wake</span>: a small dark vessel lower-left and a larger elongated object center-right. By t=285s, only one vessel remains and the wake is gone.
+        </p>
+        <p class="text-muted leading-relaxed text-sm prose-body">
+          Eight-rectangle HUD redaction pattern is consistent across every frame — a post-capture mask, not the pod's native overlay. Top hypothesis: maritime UAP / trans-medium event, possibly correlating with one of the Persian Gulf / Strait of Hormuz / Arabian Gulf 2020 DOW mission reports already in the corpus (D38, D44, D56-D58, D60-D65).
+        </p>
+      </a>
+
+      <a href="https://github.com/dpdanpittman/uap-analyzer/blob/main/reports/dod_111689232_nasa_placeholder.md" class="block bg-panel rounded-sm p-6 border border-border no-underline hover:border-accent-green transition group">
+        <div class="flex items-center gap-3 mb-3 flex-wrap">
+          <span class="text-[10px] font-mono text-accent-green tracking-widest">// 02 · META · REDACTION PATTERN</span>
+          <span class="text-[10px] font-mono text-muted/60 tracking-widest">DOD_111689232.mp4 · 6m 11s</span>
+        </div>
+        <h2 class="text-2xl font-bold text-text mb-3 font-mono group-hover:text-accent-green transition">DOD_111689232 — NASA-logo placeholder, redaction-by-substitution</h2>
+        <p class="text-muted leading-relaxed mb-3 prose-body">
+          A 6:11 video file slotted into the DOD numbering sequence whose entire content — every sampled frame — is the NASA "meatball" logo on white. The bitrate is anomalously low (412 kbps at 1080p) because H.264 inter-frame compression collapses the static logo to nearly nothing.
+        </p>
+        <p class="text-muted leading-relaxed text-sm prose-body">
+          <span class="text-text">A meta-finding:</span> the release pipeline doesn't only redact overlays — in at least this one case it substitutes the entire payload with a generic logo while preserving the file's slot in the index. Someone made an explicit curation decision to leave a placeholder rather than removing the entry entirely.
+        </p>
+      </a>
+
+      <a href="https://github.com/dpdanpittman/uap-analyzer/blob/main/reports/western_us_event_slides.md" class="block bg-panel rounded-sm p-6 border border-border no-underline hover:border-warm transition group">
+        <div class="flex items-center gap-3 mb-3 flex-wrap">
+          <span class="text-[10px] font-mono text-warm tracking-widest">// 03 · AARO BRIEFING · 2026-05-08</span>
+          <span class="text-[10px] font-mono text-muted/60 tracking-widest">Western_US_Event_Slides_5.08.2026.pdf</span>
+        </div>
+        <h2 class="text-2xl font-bold text-text mb-3 font-mono group-hover:text-warm transition">Western US Event — four sightings by federal LE in a restricted zone</h2>
+        <p class="text-muted leading-relaxed mb-3 prose-body">
+          AARO briefing dated 2026-05-08. Four cases, observed by federal law-enforcement special agents (USPER1–USPER7) in an unnamed western US restricted zone. Case 1 "Orbs Launching Orbs": an orange mother orb appearing for 1-2 seconds, ejecting 2-4 red orbs, then disappearing — repeated at least five times across two days and three teams. Case 2 "Large, Fiery Orb": ~12-18 m diameter, hovered ~1 minute, silent, "zero resistance." Case 3 "Dark Kite": triangular, lateral motion at 15-20 mph without orientation change. Case 4 "Transparent Kite": stars visible through it under NVGs; a spotlight beam <em class="text-text not-italic">terminated at ~50 yards on nothing visible</em>.
+        </p>
+        <p class="text-muted leading-relaxed text-sm prose-body">
+          The mother-orb-launches-swarm pattern recurs in other recent UAP testimony — flagged as cross-corpus. Location not named but inferred: a DOE national lab or military range given the federal-LE + pre-dawn + NVGs + restricted-zone profile.
+        </p>
+      </a>
+
+      <a href="https://github.com/dpdanpittman/uap-analyzer/blob/main/reports/dod_111689022_coastal_recon.md" class="block bg-panel rounded-sm p-6 border border-border no-underline hover:border-accent transition group">
+        <div class="flex items-center gap-3 mb-3 flex-wrap">
+          <span class="text-[10px] font-mono text-accent tracking-widest">// 04 · SENSOR-FORMAT ANOMALY</span>
+          <span class="text-[10px] font-mono text-muted/60 tracking-widest">DOD_111689022.mp4 · 24s · 800×444</span>
+        </div>
+        <h2 class="text-2xl font-bold text-text mb-3 font-mono group-hover:text-accent transition">DOD_111689022 — coastal recon snippet, format mismatch</h2>
+        <p class="text-muted leading-relaxed mb-3 prose-body">
+          A 24-second clip in a format that's the single biggest anomaly across the 28 DOD videos: 800×444 at 10 fps, vs. 1920×1080 30 fps for everything else. Sampled frame shows an aerial grayscale view of arid coastline with surf wrapping around a point of land, cyan tactical HUD, four corner redaction rectangles.
+        </p>
+        <p class="text-muted leading-relaxed text-sm prose-body">
+          The format mismatch suggests a different sensor or platform than the FLIR pods that produced the rest of the DOD batch — wide-area airborne mapper, older drone EO, allied platform, or a downsampled proxy. Initial finding only; worth more frames before concluding.
+        </p>
+      </a>
+
+    </section>
+
+    <section class="mt-12 border-t border-border pt-10">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="stamp text-warm">// OPERATOR NOTE</span>
+      </div>
+      <h2 class="text-2xl font-bold mb-3 text-text font-mono">A note on vision-model reliability</h2>
+      <p class="text-muted leading-relaxed mb-3 max-w-2xl prose-body">
+        The local <code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-sm text-accent">llama3.2-vision:11b</code> model is <span class="text-warm">unreliable</span> for this corpus. It hallucinates HUD elements ("red target box", "range/bearing indicator") from its training-data exposure to Gimbal/Go Fast footage. It misses obvious redactions. Once it refused a NASA logo frame as <span class="redacted">CLASSIFIED MILITARY IMAGE</span>.
+      </p>
+      <p class="text-muted leading-relaxed text-sm max-w-2xl prose-body">
+        The findings above rely on direct frame inspection of extracted JPGs (via the Read tool on the analyst's host) for ground truth — not on the vision model's narration. The vision describe is a starting point, not a citation.
+      </p>
+    </section>
+
+  </div>
+
+</Base>

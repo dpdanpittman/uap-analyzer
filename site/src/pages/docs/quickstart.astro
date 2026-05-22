@@ -1,0 +1,78 @@
+---
+import Base from '../../layouts/Base.astro';
+---
+<Base title="Quickstart" description="Get uap-analyzer running locally or on a LAN box and call your first MCP tool.">
+
+  <div class="max-w-5xl mx-auto px-6 py-16">
+
+    <section class="mb-10">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="stamp text-accent">// DOCS / QUICKSTART</span>
+      </div>
+      <h1 class="text-4xl font-bold mb-4 leading-tight text-text">Quickstart</h1>
+      <p class="text-base text-muted leading-relaxed max-w-2xl prose-body">
+        End-to-end: clone, point at a corpus, run the container, register with Claude Code, call a tool. About 10 minutes if ollama is already up.
+      </p>
+    </section>
+
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3 text-accent font-mono">1. Prerequisites</h2>
+      <ul class="text-muted space-y-2 max-w-2xl ml-4 prose-body">
+        <li>Docker + docker compose (any reasonably-modern install).</li>
+        <li>An <code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-sm text-accent">ollama</code> daemon reachable over the network. Pull at minimum <code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-sm text-accent">llama3.2-vision:11b</code> and <code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-sm text-accent">qwq:32b</code>.</li>
+        <li>Disk space for the corpus — figure ~4 GB per war.gov release tranche, plus ~30% for OCR + frame cache.</li>
+        <li>Claude Code (or any MCP-aware client) for invoking the tools.</li>
+      </ul>
+    </section>
+
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3 text-accent font-mono">2. Clone + point at the corpus</h2>
+      <pre class="bg-code-bg border border-code-border p-4 rounded-sm text-sm overflow-x-auto leading-relaxed"><code><span class="text-accent-green">$</span> git clone https://github.com/dpdanpittman/uap-analyzer.git
+<span class="text-accent-green">$</span> <span class="text-accent">cd</span> uap-analyzer
+<span class="text-accent-green">$</span> cp .env.example .env</code></pre>
+      <p class="text-muted leading-relaxed mt-3 text-sm max-w-2xl prose-body">
+        Edit <code class="bg-code-bg border border-code-border px-1 py-0.5 rounded text-xs text-accent">.env</code> so <code class="bg-code-bg border border-code-border px-1 py-0.5 rounded text-xs text-accent">OLLAMA_HOST</code> points at your ollama daemon and <code class="bg-code-bg border border-code-border px-1 py-0.5 rounded text-xs text-accent">UAP_DATA_DIR</code> points at the directory holding your <code class="bg-code-bg border border-code-border px-1 py-0.5 rounded text-xs text-accent">Release_N/</code> subfolders.
+      </p>
+    </section>
+
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3 text-accent font-mono">3. Bring up the server</h2>
+      <pre class="bg-code-bg border border-code-border p-4 rounded-sm text-sm overflow-x-auto leading-relaxed"><code><span class="text-accent-green">$</span> docker compose up -d --build
+<span class="text-accent-green">$</span> curl -fsS http://localhost:3260/healthz
+<span class="text-muted">→ ok</span></code></pre>
+    </section>
+
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3 text-accent font-mono">4. Register with Claude Code</h2>
+      <pre class="bg-code-bg border border-code-border p-4 rounded-sm text-sm overflow-x-auto leading-relaxed"><code><span class="text-accent-green">$</span> claude mcp add --transport http uap-analyzer http://<span class="text-warm">YOUR-HOST</span>:3260/mcp</code></pre>
+      <p class="text-muted leading-relaxed mt-3 text-sm max-w-2xl prose-body">
+        Restart your Claude Code session to pick up the new server. The tools appear as <code class="bg-code-bg border border-code-border px-1 py-0.5 rounded text-xs text-accent">mcp__uap-analyzer__&lt;tool&gt;</code>.
+      </p>
+    </section>
+
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3 text-accent font-mono">5. First tool calls</h2>
+      <pre class="bg-code-bg border border-code-border p-4 rounded-sm text-sm overflow-x-auto leading-relaxed"><code><span class="text-muted"># In your LLM session:</span>
+
+<span class="text-accent-green">&gt;</span> list_corpus(rescan=True)
+<span class="text-muted">→ inventory + counts</span>
+
+<span class="text-accent-green">&gt;</span> index_corpus(kind=<span class="text-accent">"pdf"</span>)
+<span class="text-muted"># one-time OCR + FTS-index pass; expect 5–15 min</span>
+
+<span class="text-accent-green">&gt;</span> search_corpus(query=<span class="text-accent">"range fouler"</span>, k=5)
+<span class="text-muted">→ ranked hits with «match»-highlighted snippets</span></code></pre>
+    </section>
+
+    <section class="mb-10">
+      <div class="border-l-2 border-warm bg-classified/20 p-5">
+        <p class="text-xs font-mono text-warm mb-2 tracking-widest">// GOTCHA · FASTMCP TRANSPORT SECURITY</p>
+        <p class="text-muted leading-relaxed text-sm prose-body">
+          FastMCP defaults to localhost-only Host-header validation. Reaching the server from a different machine on the LAN returns a 400 until you set <code class="bg-code-bg border border-code-border px-1 py-0.5 rounded text-xs text-accent">TransportSecuritySettings(enable_dns_rebinding_protection=False)</code> in <code class="bg-code-bg border border-code-border px-1 py-0.5 rounded text-xs text-accent">server.py</code>. Already wired in this repo — flagged here in case you fork or downgrade.
+        </p>
+      </div>
+    </section>
+
+  </div>
+
+</Base>

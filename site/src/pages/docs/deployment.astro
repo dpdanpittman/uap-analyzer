@@ -1,0 +1,83 @@
+---
+import Base from '../../layouts/Base.astro';
+---
+<Base title="Deployment" description="Running uap-analyzer on a LAN box: docker compose, bootstrap script, ollama colocation, the FastMCP transport-security gotcha.">
+
+  <div class="max-w-5xl mx-auto px-6 py-16">
+
+    <section class="mb-10">
+      <div class="flex items-center gap-3 mb-3">
+        <span class="stamp text-accent">// DOCS / DEPLOYMENT</span>
+      </div>
+      <h1 class="text-4xl font-bold mb-4 leading-tight text-text">Deployment</h1>
+      <p class="text-base text-muted leading-relaxed max-w-2xl prose-body">
+        Two configurations: laptop-local for poking, or a LAN box colocated with your ollama instance for everyday analyst work.
+      </p>
+    </section>
+
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3 text-accent font-mono">Laptop-local</h2>
+      <p class="text-muted leading-relaxed mb-3 max-w-2xl prose-body">
+        Fine for one-off probing. Slow for vision describe — your laptop's GPU is the bottleneck. Bring up the container, point <code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-sm text-accent">OLLAMA_HOST</code> at your local <code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-sm text-accent">ollama serve</code>, register with Claude Code.
+      </p>
+      <pre class="bg-code-bg border border-code-border p-4 rounded-sm text-sm overflow-x-auto leading-relaxed"><code><span class="text-accent-green">$</span> cp .env.example .env
+<span class="text-muted"># Edit: OLLAMA_HOST=http://host.docker.internal:11434</span>
+<span class="text-muted"># Edit: UAP_DATA_DIR points at your local Release_N/ folder</span>
+<span class="text-accent-green">$</span> docker compose up -d --build</code></pre>
+    </section>
+
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3 text-accent font-mono">LAN box (recommended)</h2>
+      <p class="text-muted leading-relaxed mb-3 max-w-2xl prose-body">
+        The setup the analyst notes were produced on. A box with a beefy GPU running ollama, the analyzer container colocated, the LLM client (your laptop) reaches both over the LAN.
+      </p>
+      <ol class="text-muted space-y-3 max-w-2xl ml-4 prose-body list-decimal mb-4">
+        <li>Sync the repo: <code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-sm text-accent">rsync -az --exclude='.venv' ./ user@host:~/uap-analyzer/</code></li>
+        <li>Drop the corpus under <code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-sm text-accent">~/uap-data/Release_N/</code> on the box.</li>
+        <li>Bring up the container: <code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-sm text-accent">ssh user@host 'cd ~/uap-analyzer && docker compose up -d --build'</code></li>
+        <li>Register from your laptop: <code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-sm text-accent">claude mcp add --transport http uap-analyzer http://HOST:3260/mcp</code></li>
+      </ol>
+      <p class="text-muted leading-relaxed text-sm max-w-2xl prose-body">
+        There's a <code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-sm text-accent">deploy/zaphod-bootstrap.sh</code> in the repo as a worked example of step 1-3 for the author's LAN box. Adapt to your hostnames and you've got a one-shot deploy.
+      </p>
+    </section>
+
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3 text-accent font-mono">First-run checklist</h2>
+      <ul class="text-muted space-y-2 max-w-2xl ml-4 prose-body">
+        <li><code class="bg-code-bg border border-code-border px-1 py-0.5 rounded text-xs text-accent">curl http://HOST:3260/healthz</code> → <code class="bg-code-bg border border-code-border px-1 py-0.5 rounded text-xs text-accent">ok</code></li>
+        <li><code class="bg-code-bg border border-code-border px-1 py-0.5 rounded text-xs text-accent">list_corpus(rescan=True)</code> from the LLM session — confirms the bind mount + index work.</li>
+        <li><code class="bg-code-bg border border-code-border px-1 py-0.5 rounded text-xs text-accent">index_corpus(kind="pdf")</code> once per tranche. Expect 5–15 min wall-clock the first time.</li>
+      </ul>
+    </section>
+
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-3 text-accent font-mono">Known gotchas</h2>
+
+      <div class="space-y-4">
+        <div class="border-l-2 border-warm bg-classified/20 p-5">
+          <p class="text-xs font-mono text-warm mb-2 tracking-widest">// FASTMCP TRANSPORT SECURITY</p>
+          <p class="text-muted leading-relaxed text-sm prose-body">
+            FastMCP defaults to localhost-only Host-header validation. Reaching the server from a different machine on the LAN returns a 400. Already disabled in <code class="bg-code-bg border border-code-border px-1 py-0.5 rounded text-xs text-accent">server.py</code> via <code class="bg-code-bg border border-code-border px-1 py-0.5 rounded text-xs text-accent">TransportSecuritySettings(enable_dns_rebinding_protection=False)</code> — flagged here in case you fork or downgrade.
+          </p>
+        </div>
+
+        <div class="border-l-2 border-accent bg-bg-soft/40 p-5">
+          <p class="text-xs font-mono text-accent mb-2 tracking-widest">// VISION MODEL UNRELIABILITY</p>
+          <p class="text-muted leading-relaxed text-sm prose-body">
+            <code class="bg-code-bg border border-code-border px-1 py-0.5 rounded text-xs text-accent">llama3.2-vision:11b</code> hallucinates HUD elements (red target boxes, range/bearing indicators) on FLIR frames — its training corpus is full of public UAP releases and it confabulates. Treat vision describe as a starting point, not a citation. Inspect actual extracted JPGs for ground truth.
+          </p>
+        </div>
+
+        <div class="border-l-2 border-accent-green bg-bg-soft/40 p-5">
+          <p class="text-xs font-mono text-accent-green mb-2 tracking-widest">// SCANNED-PDF OCR FALLBACK</p>
+          <p class="text-muted leading-relaxed text-sm prose-body">
+            Older release scans (1940s memos, FBI photo cover sheets) yield 0 chars from pdfplumber. <code class="bg-code-bg border border-code-border px-1 py-0.5 rounded text-xs text-accent">analyze_pdf(mode='ocr')</code> rasterizes pages at 200 dpi and runs them through Tesseract. <code class="bg-code-bg border border-code-border px-1 py-0.5 rounded text-xs text-accent">index_corpus</code> does this automatically as a fallback when text-yield is poor.
+          </p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+</Base>

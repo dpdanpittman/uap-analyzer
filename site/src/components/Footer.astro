@@ -1,0 +1,23 @@
+---
+const year = new Date().getFullYear();
+---
+<footer class="border-t border-border text-sm text-muted mt-20 font-mono">
+  <div class="max-w-5xl mx-auto px-6 py-8 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <span class="stamp text-accent-green">DECLASSIFIED</span>
+      <span class="stamp text-muted">/// ANALYST · {year}</span>
+    </div>
+    <p class="m-0 text-xs flex gap-3 tracking-widest">
+      <a href="https://github.com/dpdanpittman/uap-analyzer" class="text-muted no-underline hover:text-accent">GITHUB</a>
+      <span class="text-border">·</span>
+      <a href="https://github.com/dpdanpittman/uap-analyzer/blob/main/README.md" class="text-muted no-underline hover:text-accent">README</a>
+      <span class="text-border">·</span>
+      <a href="https://mabus.ai" class="text-muted no-underline hover:text-accent">MABUS.AI</a>
+    </p>
+  </div>
+  <div class="max-w-5xl mx-auto px-6 pb-6 text-[10px] tracking-widest text-muted/60 leading-relaxed">
+    <p class="m-0">
+      // SOURCE CORPUS: U.S. DEPARTMENT OF WAR — <a href="https://www.war.gov/UFO" class="text-muted/80 no-underline hover:text-accent">WAR.GOV/UFO</a> — PURSUE PROGRAM // INFERENCE: LOCAL OLLAMA INSTANCE, AIR-GAPPED FROM CLOUD APIS // ANALYST FINDINGS ARE PRIVATE INTERPRETATION OF PUBLICLY-DECLASSIFIED MATERIAL — NOT AN OFFICIAL GOVERNMENT RELEASE — VERIFY BEFORE CITING //
+    </p>
+  </div>
+</footer>

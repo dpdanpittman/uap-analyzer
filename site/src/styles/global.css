@@ -1,0 +1,125 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  scroll-behavior: smooth;
+  background: #06080b;
+}
+
+body {
+  background: #06080b;
+  color: #c8d0db;
+  font-family: "JetBrains Mono", "Fira Code", Consolas, ui-monospace, monospace;
+  -webkit-font-smoothing: antialiased;
+  position: relative;
+  min-height: 100vh;
+}
+
+/* Body prose uses a slightly easier-to-read system stack;
+   mono only for headers, code, and chrome. */
+.prose-body,
+p,
+li {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", system-ui,
+    sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4,
+.font-display {
+  font-family: "JetBrains Mono", "Fira Code", Consolas, ui-monospace, monospace;
+  letter-spacing: -0.01em;
+}
+
+code,
+pre {
+  font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+}
+
+/* Site-wide scanline overlay — fixed so it doesn't move with scroll */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.018) 0px,
+    rgba(255, 255, 255, 0.018) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  pointer-events: none;
+  z-index: 50;
+  mix-blend-mode: overlay;
+}
+
+/* Faint vignette toward bottom — feels like a CRT */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 40%,
+    rgba(0, 0, 0, 0.35) 100%
+  );
+  pointer-events: none;
+  z-index: 49;
+}
+
+/* Redaction marker — black bar that can be dropped inline */
+.redacted {
+  display: inline-block;
+  background: #000;
+  color: transparent;
+  padding: 0 0.35em;
+  border-radius: 0;
+  user-select: none;
+  letter-spacing: 0.05em;
+  box-shadow: 0 0 0 1px #1a2028;
+}
+
+/* Classification stamp — diagonal rotated banner-style chip */
+.stamp {
+  display: inline-block;
+  border: 2px solid currentColor;
+  padding: 0.15em 0.55em;
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+.stamp-rotate {
+  transform: rotate(-4deg);
+}
+
+/* Terminal phosphor glow on key elements */
+.glow-amber {
+  text-shadow: 0 0 12px rgba(240, 180, 106, 0.4);
+}
+
+.glow-green {
+  text-shadow: 0 0 10px rgba(124, 196, 116, 0.4);
+}
+
+/* Subtle blink for "live" indicators */
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.pulse-soft {
+  animation: pulse-soft 2.4s ease-in-out infinite;
+}
