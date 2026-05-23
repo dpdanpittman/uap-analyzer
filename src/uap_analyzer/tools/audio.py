@@ -28,6 +28,8 @@ import asyncio
 import hashlib
 import logging
 import shutil
+import threading
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
@@ -37,10 +39,14 @@ from ..corpus import Corpus
 log = logging.getLogger(__name__)
 
 
-# Module-level model cache — faster-whisper's WhisperModel is expensive to
-# instantiate (loads weights, builds CTranslate2 graph) so we keep one per
-# (model_name, compute_type) combo for the lifetime of the process.
-_MODEL_CACHE: dict[tuple[str, str], Any] = {}
+# Bounded LRU model cache — faster-whisper's WhisperModel is expensive to
+# instantiate (loads weights, builds CTranslate2 graph) and resident memory
+# scales from ~100MB (tiny) to ~3GB (large). Cap entries + lock so a client
+# A/B-sweeping through models can't exhaust memory and concurrent cold-starts
+# don't duplicate the load. (Tribunal perf-F-perf-002/-003.)
+_MODEL_CACHE_MAX = 3
+_MODEL_CACHE: OrderedDict[tuple[str, str], Any] = OrderedDict()
+_MODEL_CACHE_LOCK = threading.Lock()
 
 
 VALID_MODELS = (
@@ -82,18 +88,42 @@ async def _ffmpeg_to_wav(
 
 def _get_model(model_name: str, compute_type: str):
     """Get-or-create a WhisperModel instance. Cached at module scope so
-    repeated tool calls don't pay the load cost."""
+    repeated tool calls don't pay the load cost.
+
+    Thread-safe: the get-or-load path is serialized via `_MODEL_CACHE_LOCK` so
+    concurrent first-calls (likely under uvicorn's default ThreadPoolExecutor)
+    can't duplicate the download or instantiation. LRU-bounded at
+    `_MODEL_CACHE_MAX` entries to prevent unbounded memory growth.
+    """
     from faster_whisper import WhisperModel  # local import — heavy
 
     key = (model_name, compute_type)
-    if key not in _MODEL_CACHE:
-        log.info("loading whisper model %s (compute_type=%s) — first call pays the download + load cost", model_name, compute_type)
-        _MODEL_CACHE[key] = WhisperModel(
-            model_name,
-            device="cpu",
-            compute_type=compute_type,
+    with _MODEL_CACHE_LOCK:
+        if key in _MODEL_CACHE:
+            _MODEL_CACHE.move_to_end(key)
+            return _MODEL_CACHE[key]
+
+        log.info(
+            "loading whisper model %s (compute_type=%s) — first call pays the download + load cost",
+            model_name, compute_type,
         )
-    return _MODEL_CACHE[key]
+        model = WhisperModel(model_name, device="cpu", compute_type=compute_type)
+        _MODEL_CACHE[key] = model
+        while len(_MODEL_CACHE) > _MODEL_CACHE_MAX:
+            evicted, _ = _MODEL_CACHE.popitem(last=False)
+            log.info("LRU-evicted whisper model %s from cache", evicted)
+        return model
+
+
+def _hash_key(*parts: Any) -> str:
+    """Hash the params tuple into a stable cache-key fragment.
+
+    Replaces the previous '|'-separated concatenation which was vulnerable to
+    collision spoofing across distinct param tuples that string-equal once
+    joined. (Tribunal sec-F-sec-005.)
+    """
+    raw = "|".join(str(p) for p in parts)
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
 async def transcribe_audio(
@@ -142,16 +172,23 @@ async def transcribe_audio(
         raise FileNotFoundError(rel_path)
 
     # Cache key folds in every parameter that materially changes the output.
-    key_parts = [
-        "v1",
-        f"m{model_name}",
-        f"l{language or 'auto'}",
-        f"b{beam_size}",
-        f"v{int(vad_filter)}",
-        f"max{int(max_seconds) if max_seconds else 0}",
-        hashlib.sha256((initial_prompt or "").encode()).hexdigest()[:8] if initial_prompt else "noinit",
-    ]
-    cache_key = "|".join(key_parts)
+    # compute_type goes in the key (the module-level _MODEL_CACHE keys by it
+    # too — omitting it here let WHISPER_COMPUTE_TYPE deploys serve stale
+    # results from the wrong-quantization model). (Tribunal arch-F-arch-001.)
+    # max_seconds uses repr() so 12.5 vs 12 don't share a cache row.
+    # (Tribunal sec-F-sec-007.)
+    prompt_h = hashlib.sha256((initial_prompt or "").encode()).hexdigest()[:8]
+    key_h = _hash_key(
+        "v2",
+        model_name,
+        cfg.whisper_compute_type,
+        language or "auto",
+        beam_size,
+        int(vad_filter),
+        repr(max_seconds) if max_seconds is not None else "none",
+        prompt_h if initial_prompt else "noinit",
+    )
+    cache_key = f"v2|{key_h}"
     cached = corpus.get_cached(rel_path, "transcribe_audio", "default", cache_key)
     if cached:
         return cached

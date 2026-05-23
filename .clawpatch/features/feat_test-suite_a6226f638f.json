@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "featureId": "feat_test-suite_a6226f638f",
+  "title": "Python test suite tests",
+  "summary": "Python pytest files in tests.",
+  "kind": "test-suite",
+  "source": "python-test-suite",
+  "confidence": "medium",
+  "entrypoints": [
+    {
+      "path": "tests",
+      "symbol": "tests",
+      "route": null,
+      "command": null
+    }
+  ],
+  "ownedFiles": [
+    {
+      "path": "tests/test_smoke.py",
+      "reason": "pytest file"
+    }
+  ],
+  "contextFiles": [
+    {
+      "path": "tests/test_smoke.py",
+      "reason": "nearby test"
+    }
+  ],
+  "tests": [
+    {
+      "path": "tests/test_smoke.py",
+      "command": "hatch run pytest"
+    }
+  ],
+  "tags": [
+    "python",
+    "test"
+  ],
+  "trustBoundaries": [],
+  "status": "pending",
+  "lock": null,
+  "findingIds": [],
+  "patchAttemptIds": [],
+  "analysisHistory": [],
+  "createdAt": "2026-05-23T02:02:21.862Z",
+  "updatedAt": "2026-05-23T02:02:21.862Z"
+}

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "projectId": "prj_https-github-com-dpdanpittman-ua_0805c37b14",
+  "name": "uap-analyzer",
+  "rootPath": "/home/dan/src/uap-analyzer",
+  "git": {
+    "remoteUrl": "https://github.com/dpdanpittman/uap-analyzer.git",
+    "defaultBranch": null,
+    "currentBranch": "main",
+    "headSha": "c267b63cd6ba816d624721c587ee4f0664bf404a"
+  },
+  "detected": {
+    "languages": [
+      "python"
+    ],
+    "frameworks": [
+      "pytest"
+    ],
+    "packageManagers": [
+      "hatch"
+    ],
+    "commands": {
+      "typecheck": "hatch run mypy .",
+      "lint": "hatch run ruff check .",
+      "format": "hatch run ruff format --check .",
+      "test": "hatch run pytest"
+    }
+  },
+  "createdAt": "2026-05-23T02:02:21.696Z",
+  "updatedAt": "2026-05-23T02:02:21.696Z"
+}

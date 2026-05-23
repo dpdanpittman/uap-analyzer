@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "featureId": "feat_library_c8e28bd94e",
+  "title": "Python source src/uap_analyzer/tools",
+  "summary": "Python source group src/uap_analyzer/tools with 8 files.",
+  "kind": "library",
+  "source": "python-source-group",
+  "confidence": "medium",
+  "entrypoints": [
+    {
+      "path": "src/uap_analyzer/tools",
+      "symbol": "src/uap_analyzer/tools",
+      "route": null,
+      "command": null
+    }
+  ],
+  "ownedFiles": [
+    {
+      "path": "src/uap_analyzer/tools/__init__.py",
+      "reason": "source group src/uap_analyzer/tools"
+    },
+    {
+      "path": "src/uap_analyzer/tools/audio.py",
+      "reason": "source group src/uap_analyzer/tools"
+    },
+    {
+      "path": "src/uap_analyzer/tools/detect.py",
+      "reason": "source group src/uap_analyzer/tools"
+    },
+    {
+      "path": "src/uap_analyzer/tools/flir.py",
+      "reason": "source group src/uap_analyzer/tools"
+    },
+    {
+      "path": "src/uap_analyzer/tools/image.py",
+      "reason": "source group src/uap_analyzer/tools"
+    },
+    {
+      "path": "src/uap_analyzer/tools/ollama_client.py",
+      "reason": "source group src/uap_analyzer/tools"
+    },
+    {
+      "path": "src/uap_analyzer/tools/pdf.py",
+      "reason": "source group src/uap_analyzer/tools"
+    },
+    {
+      "path": "src/uap_analyzer/tools/video.py",
+      "reason": "source group src/uap_analyzer/tools"
+    }
+  ],
+  "contextFiles": [],
+  "tests": [],
+  "tags": [
+    "python",
+    "source-group"
+  ],
+  "trustBoundaries": [],
+  "status": "pending",
+  "lock": null,
+  "findingIds": [],
+  "patchAttemptIds": [],
+  "analysisHistory": [],
+  "createdAt": "2026-05-23T02:02:21.862Z",
+  "updatedAt": "2026-05-23T02:02:21.862Z"
+}

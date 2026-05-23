@@ -22,9 +22,11 @@ Conventions per CLAUDE.md:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import os
-from collections import Counter
+import threading
+from collections import Counter, OrderedDict
 from pathlib import Path
 from typing import Any
 
@@ -34,18 +36,24 @@ from ..corpus import Corpus
 log = logging.getLogger(__name__)
 
 
-# Module-level model cache — ultralytics' YOLO() is expensive to instantiate
-# (loads ~6MB of weights + builds the inference graph). Keep one per (variant)
-# alive for the process lifetime so repeated calls are cheap.
-_MODEL_CACHE: dict[str, Any] = {}
+# Bounded LRU model cache. Holding a YOLO model in memory is ~6-140MB depending
+# on variant. Cap entries so a client A/B-sweeping through variants can't
+# exhaust memory; lock the dict so concurrent cold-starts don't duplicate the
+# load. (Tribunal perf-F-perf-001/-002/-003.)
+_MODEL_CACHE_MAX = 3
+_MODEL_CACHE: OrderedDict[str, Any] = OrderedDict()
+_MODEL_CACHE_LOCK = threading.Lock()
 
 
-# Friendly aliases → ultralytics weight filenames. We default to yolov8n
-# (nano, 6.2MB) for fast CPU inference; users can opt up via the `model` arg.
+# Friendly aliases → ultralytics weight filenames. yolov8n (nano, 6.2MB) is the
+# default; users can opt up via the `model` arg. yolov11* accepted too.
 VALID_MODELS = (
     "yolov8n", "yolov8s", "yolov8m", "yolov8l", "yolov8x",
     "yolov11n", "yolov11s", "yolov11m", "yolov11l", "yolov11x",
 )
+
+# Extensions YOLO can run on directly without a frame-extract step.
+IMAGE_EXTS = frozenset({".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"})
 
 
 def _model_filename(name: str) -> str:
@@ -60,37 +68,61 @@ def _model_filename(name: str) -> str:
 def _get_model(cfg: Config, name: str):
     """Get-or-create a YOLO model instance. The first call downloads weights
     (~6MB for yolov8n) to YOLO_CONFIG_DIR. Subsequent calls return the cached
-    instance — meaningfully faster for repeated detections in one process."""
-    if name in _MODEL_CACHE:
-        return _MODEL_CACHE[name]
+    instance — meaningfully faster for repeated detections in one process.
 
-    from ultralytics import YOLO
-    from ultralytics import settings as ul_settings
+    Thread-safe: the entire get-or-load path is serialized via `_MODEL_CACHE_LOCK`
+    so concurrent first-calls (likely under uvicorn's default ThreadPoolExecutor)
+    can't duplicate the load or race on the weight download. Cold-start
+    serialization is a one-time cost; cached lookups are sub-microsecond.
+    """
+    if name not in VALID_MODELS:
+        # Surface the validation before we even take the lock.
+        raise ValueError(f"unknown YOLO model {name!r}; valid: {VALID_MODELS}")
 
-    # Disable ultralytics' anonymized usage telemetry — same posture as
-    # HF_HUB_DISABLE_TELEMETRY for whisper. Belt-and-suspenders.
-    try:
-        ul_settings.update({"sync": False})
-    except Exception:  # noqa: BLE001
-        pass
+    with _MODEL_CACHE_LOCK:
+        if name in _MODEL_CACHE:
+            _MODEL_CACHE.move_to_end(name)
+            return _MODEL_CACHE[name]
 
-    weight_dir = Path(os.environ.get("YOLO_CONFIG_DIR", str(cfg.cache_dir / "yolo")))
-    weight_dir.mkdir(parents=True, exist_ok=True)
-    weight_path = weight_dir / _model_filename(name)
+        from ultralytics import YOLO
+        from ultralytics import settings as ul_settings
 
-    # ultralytics will download to the current working directory if the file
-    # doesn't exist at the given path. Cd into the weight dir for the load so
-    # the download lands in the right place. Restore cwd immediately after.
-    old_cwd = Path.cwd()
-    try:
-        os.chdir(weight_dir)
+        # Disable ultralytics' anonymized usage telemetry — same posture as
+        # HF_HUB_DISABLE_TELEMETRY for whisper. Belt-and-suspenders.
+        try:
+            ul_settings.update({"sync": False})
+        except Exception:  # noqa: BLE001
+            pass
+
+        weight_dir = Path(os.environ.get("YOLO_CONFIG_DIR", str(cfg.cache_dir / "yolo")))
+        weight_dir.mkdir(parents=True, exist_ok=True)
+        weight_path = weight_dir / _model_filename(name)
+
+        # Pass an absolute path to YOLO(). ultralytics will download to the
+        # parent directory if the file doesn't exist. This eliminates the
+        # previous os.chdir() dance, which was process-global and could leak
+        # cwd into other concurrent tool calls during the load window.
         log.info("loading YOLO model %s — first call may download weights", name)
-        model = YOLO(_model_filename(name))
-    finally:
-        os.chdir(old_cwd)
+        model = YOLO(str(weight_path))
 
-    _MODEL_CACHE[name] = model
-    return model
+        _MODEL_CACHE[name] = model
+        # Bound the cache. Drop the least-recently-used entry once we exceed.
+        while len(_MODEL_CACHE) > _MODEL_CACHE_MAX:
+            evicted_name, _ = _MODEL_CACHE.popitem(last=False)
+            log.info("LRU-evicted YOLO model %s from cache", evicted_name)
+
+        return model
+
+
+def _hash_key(*parts: Any) -> str:
+    """Hash the params tuple into a stable cache-key fragment.
+
+    Replaces the previous '|'-separated concatenation which was vulnerable to
+    collision spoofing across distinct param tuples that string-equal once
+    joined. (Tribunal sec-F-sec-005.)
+    """
+    raw = "|".join(str(p) for p in parts)
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
 def _aggregate_labels(per_frame: list[dict[str, Any]]) -> dict[str, Any]:
@@ -139,8 +171,10 @@ async def detect_objects(
                  None = keep all 80 classes.
         model: YOLO variant. yolov8n (default, fast/small) → yolov8x (slow/big).
                yolov11* also accepted.
-        width: Frame width for inference. 1280 is YOLO's native; bumping it
-               wastes time for marginal gain.
+        width: Inference resolution passed to YOLO as `imgsz`. YOLO's native
+               training size is 640; 1280 trades latency for a bit more
+               recall on small objects. For videos, also the ffmpeg scale
+               for sampled frames before they reach the model.
     """
     if not 0.0 < confidence <= 1.0:
         raise ValueError(f"confidence must be in (0, 1]; got {confidence}")
@@ -153,23 +187,43 @@ async def detect_objects(
     if not abs_path.is_file():
         raise FileNotFoundError(rel_path)
 
-    # Build a stable cache key.
+    # Classify by extension, NOT by corpus DB lookup. The DB lookup couples
+    # correctness to scan state (a never-scanned file would mis-classify) and
+    # to exact-string path match (absolute paths under UAP_DATA_DIR would
+    # fall through to the ffmpeg branch on PNG inputs). (Tribunal arch-F-arch-002.)
+    is_image = abs_path.suffix.lower() in IMAGE_EXTS
+
+    # Cache key folds in every output-affecting param via hash, NOT raw '|'
+    # concat (sec-F-sec-005). class_key is sorted-tuple for stable ordering.
     class_key = ",".join(sorted(classes)) if classes else "all"
     if at_seconds is not None:
-        cache_key = f"v1|m{model}|t{at_seconds:.2f}|c{confidence}|i{iou}|w{width}|{class_key}"
+        key_h = _hash_key(
+            "v2", model, f"t{at_seconds:.2f}",
+            confidence, iou, width, class_key, is_image,
+        )
+        cache_key = f"v2|t{at_seconds:.2f}|{key_h}"
     else:
-        cache_key = f"v1|m{model}|n{sample_count}|c{confidence}|i{iou}|w{width}|{class_key}"
+        key_h = _hash_key(
+            "v2", model, f"n{sample_count}",
+            confidence, iou, width, class_key, is_image,
+        )
+        cache_key = f"v2|n{sample_count}|{key_h}"
     cached = corpus.get_cached(rel_path, "detect_objects", "default", cache_key)
     if cached:
         return cached
 
-    # Sample frame(s).
+    # Sample frame(s). For images we skip ffmpeg entirely; for videos we sample
+    # via the existing helpers.
     from .video import extract_frame, sample_frames
 
-    is_image = corpus.get(rel_path) and corpus.get(rel_path).get("kind") == "image"
     if is_image:
-        # Single-shot image — no ffmpeg pass needed.
-        frames = [{"at_seconds": 0.0, "at_percent": None, "frame_path": str(abs_path.relative_to(cfg.cache_dir.parent) if str(abs_path).startswith(str(cfg.cache_dir.parent)) else abs_path)}]
+        frames = [{
+            "at_seconds": 0.0,
+            "at_percent": None,
+            # frame_path is unused for the image path — _run_detect uses abs_path
+            # directly. Keep the field for the consensus aggregator's shape.
+            "frame_path": rel_path,
+        }]
     elif at_seconds is not None:
         frame = await extract_frame(
             cfg, corpus, rel_path,
@@ -181,9 +235,6 @@ async def detect_objects(
             cfg, corpus, rel_path, count=sample_count, width=width,
         )
 
-    # Resolve which classes to filter on (ultralytics takes class IDs, not
-    # names). Defer the names→ids lookup until we have a loaded model so the
-    # class list is authoritative.
     loop = asyncio.get_running_loop()
 
     def _run_detect():
@@ -201,8 +252,8 @@ async def detect_objects(
 
         per_frame: list[dict[str, Any]] = []
         for f in frames:
-            # Resolve the frame path. For sampled frames the path is relative
-            # to cfg.cache_dir; for images it's the absolute corpus path.
+            # Resolve the frame path. For images, use the absolute corpus path;
+            # for sampled frames, the path is relative to cfg.cache_dir.
             if is_image:
                 src = abs_path
             else:
@@ -214,6 +265,7 @@ async def detect_objects(
             kwargs: dict[str, Any] = {
                 "conf": confidence,
                 "iou": iou,
+                "imgsz": width,
                 "verbose": False,
             }
             if class_filter is not None:

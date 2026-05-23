@@ -45,6 +45,8 @@ def build_app():
                 "vision_model": cfg.ollama_vision_model,
                 "hud_model": cfg.ollama_hud_model,
                 "text_model": cfg.ollama_text_model,
+                "whisper_model": cfg.whisper_model,
+                "whisper_compute_type": cfg.whisper_compute_type,
                 "corpus_items": len(corpus.list()),
             }
         )

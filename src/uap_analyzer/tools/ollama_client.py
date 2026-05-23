@@ -26,7 +26,21 @@ class OllamaError(RuntimeError):
 class OllamaClient:
     def __init__(self, cfg: Config):
         self.cfg = cfg
-        self._client = httpx.AsyncClient(timeout=cfg.ollama_timeout)
+        # Split the timeout: a tight connect+pool timeout fails fast if the
+        # ollama daemon is down, while the read timeout stays generous so a
+        # legitimate long-running model call (qwq:32b on a 90-min transcript,
+        # vision-mode FLIR HUD on a high-zoom frame) doesn't get cut off. The
+        # previous bare-int timeout was applied uniformly to all four phases,
+        # turning a daemon outage into a 5-min hang per call (×N frames =
+        # 25min vision-mode FLIR hang). (Tribunal perf-F-perf-005.)
+        self._client = httpx.AsyncClient(
+            timeout=httpx.Timeout(
+                connect=5.0,
+                read=cfg.ollama_timeout,
+                write=10.0,
+                pool=10.0,
+            ),
+        )
 
     async def aclose(self) -> None:
         await self._client.aclose()

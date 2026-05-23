@@ -17,6 +17,27 @@ from .tools import image as image_tools
 from .tools import pdf as pdf_tools
 from .tools import video as video_tools
 
+# MCP-boundary clamps. The new v0.2.x-v0.4.0 inference tools accept
+# numerically-bounded params from clients; without server-side caps a single
+# call can burn arbitrary CPU / disk / model-call budget on a LAN box that
+# has no auth. (Tribunal sec-F-sec-001.) Caps are 1-2 orders of magnitude
+# above realistic use so an honest client never hits them.
+_MAX_SAMPLE_COUNT = 100
+_MAX_WIDTH = 4096
+_MAX_BEAM_SIZE = 20
+_MAX_MAX_SECONDS = 86400  # 24h transcript ceiling
+_MAX_FRAME_AT_SECONDS = 86400
+
+
+def _bounded(name: str, value: int | float | None, cap: int | float) -> int | float | None:
+    if value is None:
+        return None
+    if value < 0:
+        raise ValueError(f"{name} must be >= 0; got {value}")
+    if value > cap:
+        raise ValueError(f"{name} must be <= {cap}; got {value}")
+    return value
+
 log = logging.getLogger(__name__)
 
 
@@ -85,6 +106,8 @@ def build_server(cfg: Config | None = None) -> tuple[FastMCP, Config, Corpus]:
             width: For mode='frames'/'describe', output frame width in pixels. Default 800.
             prompt: For mode='describe', override the FLIR-tuned default prompt.
         """
+        _bounded("count", count, _MAX_SAMPLE_COUNT)
+        _bounded("width", width, _MAX_WIDTH)
         if mode == "metadata":
             return await video_tools.analyze_video_metadata(cfg, corpus, path)
         if mode == "frames":
@@ -117,6 +140,10 @@ def build_server(cfg: Config | None = None) -> tuple[FastMCP, Config, Corpus]:
             width: Output width in pixels. Height auto-scales.
             return_base64: If true, include base64 JPEG in response.
         """
+        _bounded("at_seconds", at_seconds, _MAX_FRAME_AT_SECONDS)
+        _bounded("width", width, _MAX_WIDTH)
+        if at_percent is not None and not (0.0 <= at_percent <= 1.0):
+            raise ValueError(f"at_percent must be in [0, 1]; got {at_percent}")
         return await video_tools.extract_frame(
             cfg, corpus, path,
             at_seconds=at_seconds, at_percent=at_percent,
@@ -322,6 +349,9 @@ def build_server(cfg: Config | None = None) -> tuple[FastMCP, Config, Corpus]:
             vision_model: Override OLLAMA_HUD_MODEL for vision mode (e.g. switch
                           to 'llama3.2-vision:11b' to A/B against the default).
         """
+        _bounded("sample_count", sample_count, _MAX_SAMPLE_COUNT)
+        _bounded("width", width, _MAX_WIDTH)
+        _bounded("at_seconds", at_seconds, _MAX_FRAME_AT_SECONDS)
         return await flir_tools.flir_hud_ocr(
             cfg, corpus, path,
             mode=mode,
@@ -371,6 +401,10 @@ def build_server(cfg: Config | None = None) -> tuple[FastMCP, Config, Corpus]:
             max_seconds: Cap transcription at this duration. Useful for
                          previewing long press conferences.
         """
+        _bounded("beam_size", beam_size, _MAX_BEAM_SIZE)
+        _bounded("max_seconds", max_seconds, _MAX_MAX_SECONDS)
+        if initial_prompt is not None and len(initial_prompt) > 1024:
+            raise ValueError("initial_prompt must be <= 1024 chars")
         return await audio_tools.transcribe_audio(
             cfg, corpus, path,
             model=model,
@@ -417,8 +451,15 @@ def build_server(cfg: Config | None = None) -> tuple[FastMCP, Config, Corpus]:
                      ["airplane", "person", "boat"]). None = all 80.
             model: YOLO variant. yolov8n (default, ~6MB, fast) →
                    yolov8x (~136MB, accurate). yolov11* accepted too.
-            width: Frame width for inference. Default 1280 (YOLO native).
+            width: Inference resolution passed to YOLO as `imgsz`. YOLO native
+                   is 640; 1280 trades latency for a bit more small-object
+                   recall.
         """
+        _bounded("sample_count", sample_count, _MAX_SAMPLE_COUNT)
+        _bounded("width", width, _MAX_WIDTH)
+        _bounded("at_seconds", at_seconds, _MAX_FRAME_AT_SECONDS)
+        if classes is not None and len(classes) > 80:
+            raise ValueError("classes filter must have at most 80 entries (COCO size)")
         return await detect_tools.detect_objects(
             cfg, corpus, path,
             at_seconds=at_seconds,

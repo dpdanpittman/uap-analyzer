@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "featureId": "feat_cli-command_49a226a4e6",
+  "title": "Python CLI command uap-analyzer",
+  "summary": "Python console script 'uap-analyzer' targets uap_analyzer.__main__:main, source src/uap_analyzer/__main__.py.",
+  "kind": "cli-command",
+  "source": "python-console-script",
+  "confidence": "high",
+  "entrypoints": [
+    {
+      "path": "src/uap_analyzer/__main__.py",
+      "symbol": "main",
+      "route": null,
+      "command": "uap-analyzer"
+    }
+  ],
+  "ownedFiles": [
+    {
+      "path": "src/uap_analyzer/__main__.py",
+      "reason": "console script source"
+    }
+  ],
+  "contextFiles": [],
+  "tests": [],
+  "tags": [
+    "python",
+    "cli"
+  ],
+  "trustBoundaries": [
+    "user-input",
+    "filesystem",
+    "process-exec"
+  ],
+  "status": "pending",
+  "lock": null,
+  "findingIds": [],
+  "patchAttemptIds": [],
+  "analysisHistory": [],
+  "createdAt": "2026-05-23T02:02:21.862Z",
+  "updatedAt": "2026-05-23T02:02:21.862Z"
+}

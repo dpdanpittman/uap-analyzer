@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "featureId": "feat_library_5ade569606",
+  "title": "Python source src/uap_analyzer",
+  "summary": "Python source group src/uap_analyzer with 5 files.",
+  "kind": "library",
+  "source": "python-source-group",
+  "confidence": "medium",
+  "entrypoints": [
+    {
+      "path": "src/uap_analyzer",
+      "symbol": "src/uap_analyzer",
+      "route": null,
+      "command": null
+    }
+  ],
+  "ownedFiles": [
+    {
+      "path": "src/uap_analyzer/__init__.py",
+      "reason": "source group src/uap_analyzer"
+    },
+    {
+      "path": "src/uap_analyzer/__main__.py",
+      "reason": "source group src/uap_analyzer"
+    },
+    {
+      "path": "src/uap_analyzer/config.py",
+      "reason": "source group src/uap_analyzer"
+    },
+    {
+      "path": "src/uap_analyzer/corpus.py",
+      "reason": "source group src/uap_analyzer"
+    },
+    {
+      "path": "src/uap_analyzer/server.py",
+      "reason": "source group src/uap_analyzer"
+    }
+  ],
+  "contextFiles": [],
+  "tests": [],
+  "tags": [
+    "python",
+    "source-group"
+  ],
+  "trustBoundaries": [],
+  "status": "pending",
+  "lock": null,
+  "findingIds": [],
+  "patchAttemptIds": [],
+  "analysisHistory": [],
+  "createdAt": "2026-05-23T02:02:21.862Z",
+  "updatedAt": "2026-05-23T02:02:21.862Z"
+}

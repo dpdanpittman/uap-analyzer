@@ -28,6 +28,20 @@ from typing import Any
 from ..config import Config
 from ..corpus import Corpus
 
+# Vision-model whitelist for the `vision_model` arg passed to flir_hud_ocr
+# (mode="vision"). Sibling tools (transcribe_audio, detect_objects) gate their
+# model parameter against an enum — this one didn't, which let a client
+# inflate the cache and the model-cache via arbitrary names. (Tribunal sec-F-sec-002.)
+VALID_HUD_MODELS = frozenset({
+    "qwen2.5vl:7b",
+    "qwen2.5vl:32b",
+    "qwen2.5vl:72b",
+    "qwen2-vl:7b",
+    "llama3.2-vision:11b",
+    "llama3.2-vision:90b",
+    "minicpm-v:8b",
+})
+
 log = logging.getLogger(__name__)
 
 
@@ -270,16 +284,19 @@ def _normalize_vision_fields(raw: dict[str, Any]) -> dict[str, Any]:
         if RE_ZOOM_NUMERIC.search(z) or z.upper() in {t.upper() for t in ZOOM_FOV_TOKENS}:
             out["zoom"] = z if z.startswith("x") or z.startswith("X") else z.upper()
 
+    # Note on isinstance(..., (int, float)) below: bool is a subclass of int in
+    # Python, so `True`/`False` would otherwise sneak through as 1.0/0.0.
+    # Reject explicit bool first. (Tribunal sec-F-sec-010.)
     rng = raw.get("range_nm")
-    if isinstance(rng, (int, float)) and 0 < rng < 1000:
+    if isinstance(rng, (int, float)) and not isinstance(rng, bool) and 0 < rng < 1000:
         out["range_nm"] = float(rng)
 
     brg = raw.get("bearing_deg")
-    if isinstance(brg, (int, float)) and 0 <= brg <= 360:
+    if isinstance(brg, (int, float)) and not isinstance(brg, bool) and 0 <= brg <= 360:
         out["bearing_deg"] = float(brg)
 
     el = raw.get("elevation_deg")
-    if isinstance(el, (int, float)) and -90 <= el <= 90:
+    if isinstance(el, (int, float)) and not isinstance(el, bool) and -90 <= el <= 90:
         out["elevation_deg"] = float(el)
 
     tc = raw.get("timecode")
@@ -289,30 +306,41 @@ def _normalize_vision_fields(raw: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+# Maximum size of the model's JSON response we'll attempt to parse. Caps both
+# the JSON-decoder work and the recursion depth a hostile model output could
+# trigger via deeply-nested arrays. (Tribunal sec-F-sec-006.)
+_VISION_JSON_MAX_BYTES = 64 * 1024
+
+
 async def _vision_extract_frame(
-    cfg: Config, frame_path: Path, *, model: str | None = None
+    client: Any, frame_path: Path, *, model: str
 ) -> dict[str, Any]:
     """Send a frame to the vision model with the structured-HUD prompt; parse
     JSON back; return (normalized_fields_dict, raw_model_text, model_used).
-    """
-    from .ollama_client import OllamaClient
 
-    client = OllamaClient(cfg)
-    try:
-        resp = await client.describe_image(
-            frame_path,
-            FLIR_HUD_VISION_PROMPT,
-            temperature=0.05,
-            max_tokens=512,
-            model=model or cfg.ollama_hud_model,
-            json_mode=True,
-        )
-    finally:
-        await client.aclose()
+    Takes a pre-built `OllamaClient` — caller is responsible for lifecycle.
+    Hoisting the client out of the per-frame loop preserves TCP keepalive
+    across frames and avoids the per-call handshake cost. (Tribunal arch-F-arch-005,
+    perf-F-perf-004.)
+    """
+    resp = await client.describe_image(
+        frame_path,
+        FLIR_HUD_VISION_PROMPT,
+        temperature=0.05,
+        max_tokens=512,
+        model=model,
+        json_mode=True,
+    )
 
     content = (resp.get("content") or "").strip()
     parsed: dict[str, Any] = {}
     raw_text = ""
+    if len(content) > _VISION_JSON_MAX_BYTES:
+        log.warning(
+            "vision-mode response %d bytes exceeds parse cap %d; clamping",
+            len(content), _VISION_JSON_MAX_BYTES,
+        )
+        content = content[:_VISION_JSON_MAX_BYTES]
     try:
         import json as _json
         # ollama JSON mode is usually clean; defensive parse in case the model
@@ -325,14 +353,14 @@ async def _vision_extract_frame(
         if isinstance(obj, dict):
             parsed = obj
             raw_text = str(obj.get("raw_text", ""))[:240]
-    except (ValueError, TypeError) as e:
+    except (ValueError, TypeError, RecursionError) as e:
         log.warning("vision-mode JSON parse failed: %s; content=%s", e, content[:200])
 
     fields = _normalize_vision_fields(parsed)
     return {
         "fields": fields,
         "raw_text": raw_text,
-        "model": resp.get("model") or cfg.ollama_hud_model,
+        "model": resp.get("model") or model,
         "duration_s": resp.get("total_duration_s"),
     }
 
@@ -382,16 +410,36 @@ async def flir_hud_ocr(
         if unknown:
             raise ValueError(f"unknown HUD region(s): {unknown}. valid: {sorted(HUD_REGIONS)}")
 
+    # Whitelist `vision_model`. The sibling tools (transcribe_audio,
+    # detect_objects) gate their model param against a tuple — this one
+    # didn't, which let arbitrary client-supplied names inflate the cache
+    # key namespace + the ollama model cache. (Tribunal sec-F-sec-002.)
+    resolved_vision_model: str | None = None
+    if mode == "vision":
+        resolved_vision_model = vision_model or cfg.ollama_hud_model
+        if resolved_vision_model not in VALID_HUD_MODELS:
+            raise ValueError(
+                f"unknown vision_model {resolved_vision_model!r}; "
+                f"valid: {sorted(VALID_HUD_MODELS)}"
+            )
+
     abs_path = cfg.resolve_corpus_path(rel_path)
     if not abs_path.is_file():
         raise FileNotFoundError(rel_path)
 
+    # Cache key folds in every output-affecting param via hash (sec-F-sec-005).
     region_key = ",".join(sorted(use_regions))
-    model_key = (vision_model or cfg.ollama_hud_model).replace(":", "_") if mode == "vision" else "n/a"
+    model_key = resolved_vision_model or "n/a"
     if at_seconds is not None:
-        cache_key = f"v2|m{mode}|t{at_seconds:.2f}|w{width}|{region_key}|{model_key}"
+        key_h = hashlib.sha256(
+            "|".join(("v3", mode, f"t{at_seconds:.2f}", str(width), region_key, model_key)).encode()
+        ).hexdigest()[:16]
+        cache_key = f"v3|m{mode}|t{at_seconds:.2f}|{key_h}"
     else:
-        cache_key = f"v2|m{mode}|n{sample_count}|w{width}|{region_key}|{model_key}"
+        key_h = hashlib.sha256(
+            "|".join(("v3", mode, f"n{sample_count}", str(width), region_key, model_key)).encode()
+        ).hexdigest()[:16]
+        cache_key = f"v3|m{mode}|n{sample_count}|{key_h}"
     cached = corpus.get_cached(rel_path, "flir_hud_ocr", mode, cache_key)
     if cached:
         return cached
@@ -412,55 +460,68 @@ async def flir_hud_ocr(
             cfg, corpus, rel_path, count=sample_count, width=width,
         )
 
+    # Build one OllamaClient for the whole vision-mode sweep so TCP keepalive
+    # is preserved across frames. (Tribunal perf-F-perf-004, arch-F-arch-005.)
+    vision_client: Any = None
+    if mode == "vision":
+        from .ollama_client import OllamaClient
+        vision_client = OllamaClient(cfg)
+
     per_frame: list[dict[str, Any]] = []
-    for f in frames:
-        abs_frame = cfg.cache_dir / f["frame_path"]
-        if not abs_frame.is_file():
-            log.warning("frame missing on disk: %s", abs_frame)
-            continue
+    try:
+        for f in frames:
+            abs_frame = cfg.cache_dir / f["frame_path"]
+            if not abs_frame.is_file():
+                log.warning("frame missing on disk: %s", abs_frame)
+                continue
 
-        if mode == "ocr":
-            img = Image.open(abs_frame)
-            region_texts: dict[str, str] = {}
-            for r in use_regions:
-                txt = _ocr_region(img, HUD_REGIONS[r])
-                txt = txt.strip()
-                if txt:
-                    region_texts[r] = txt
-            joined = "\n".join(region_texts.values())
-            fields = _parse_fields(joined)
+            if mode == "ocr":
+                img = Image.open(abs_frame)
+                region_texts: dict[str, str] = {}
+                for r in use_regions:
+                    txt = _ocr_region(img, HUD_REGIONS[r])
+                    txt = txt.strip()
+                    if txt:
+                        region_texts[r] = txt
+                joined = "\n".join(region_texts.values())
+                fields = _parse_fields(joined)
 
-            per_frame.append({
-                "at_seconds": f["at_seconds"],
-                "at_percent": f.get("at_percent"),
-                "frame_path": f["frame_path"],
-                "extraction_mode": "ocr",
-                "raw_text": joined,
-                "region_texts": region_texts,
-                "fields": fields,
-                "field_count": len(fields),
-            })
-        else:
-            # vision mode
-            try:
-                v = await _vision_extract_frame(cfg, abs_frame, model=vision_model)
-            except Exception as e:  # noqa: BLE001
-                log.warning("vision extract failed at t=%s: %r", f.get("at_seconds"), e)
-                v = {"fields": {}, "raw_text": "", "model": None, "duration_s": None,
-                     "error": str(e)[:240]}
+                per_frame.append({
+                    "at_seconds": f["at_seconds"],
+                    "at_percent": f.get("at_percent"),
+                    "frame_path": f["frame_path"],
+                    "extraction_mode": "ocr",
+                    "raw_text": joined,
+                    "region_texts": region_texts,
+                    "fields": fields,
+                    "field_count": len(fields),
+                })
+            else:
+                # vision mode
+                try:
+                    v = await _vision_extract_frame(
+                        vision_client, abs_frame, model=resolved_vision_model,
+                    )
+                except Exception as e:  # noqa: BLE001
+                    log.warning("vision extract failed at t=%s: %r", f.get("at_seconds"), e)
+                    v = {"fields": {}, "raw_text": "", "model": None, "duration_s": None,
+                         "error": str(e)[:240]}
 
-            per_frame.append({
-                "at_seconds": f["at_seconds"],
-                "at_percent": f.get("at_percent"),
-                "frame_path": f["frame_path"],
-                "extraction_mode": "vision",
-                "raw_text": v.get("raw_text", ""),
-                "fields": v["fields"],
-                "field_count": len(v["fields"]),
-                "model": v.get("model"),
-                "duration_s": v.get("duration_s"),
-                **({"error": v["error"]} if "error" in v else {}),
-            })
+                per_frame.append({
+                    "at_seconds": f["at_seconds"],
+                    "at_percent": f.get("at_percent"),
+                    "frame_path": f["frame_path"],
+                    "extraction_mode": "vision",
+                    "raw_text": v.get("raw_text", ""),
+                    "fields": v["fields"],
+                    "field_count": len(v["fields"]),
+                    "model": v.get("model"),
+                    "duration_s": v.get("duration_s"),
+                    **({"error": v["error"]} if "error" in v else {}),
+                })
+    finally:
+        if vision_client is not None:
+            await vision_client.aclose()
 
     result: dict[str, Any] = {
         "path": rel_path,
@@ -473,7 +534,7 @@ async def flir_hud_ocr(
         }),
     }
     if mode == "vision":
-        result["vision_model"] = vision_model or cfg.ollama_hud_model
+        result["vision_model"] = resolved_vision_model
 
     corpus.put_cached(rel_path, "flir_hud_ocr", mode, cache_key, result)
     return result
