@@ -14,8 +14,8 @@ MCP server that analyzes UAP / Department of War release material. Offloads heav
 | `search_corpus`    | ✅ v1                      | Full-text search across indexed PDFs (sqlite-fts5, bm25 ranking, FTS5 syntax)                   |
 | `index_corpus`     | ✅ v1                      | Bulk-index PDFs (with OCR fallback) into the search index                                       |
 | `flir_hud_ocr`     | ✅ v0.2.1                  | Extract HUD overlay fields. Two modes: `ocr` (tesseract, fast) / `vision` (qwen2.5vl, accurate) |
-| `transcribe_audio` | ✅ **v0.3.0** (2026-05-22) | Speech-to-text via faster-whisper (CPU, int8). Segments + full text + auto language detect.     |
-| `detect_objects`   | ⏳ v0.4.0                  | YOLO per-frame                                                                                  |
+| `transcribe_audio` | ✅ v0.3.0                  | Speech-to-text via faster-whisper (CPU, int8). Segments + full text + auto language detect.     |
+| `detect_objects`   | ✅ **v0.4.0** (2026-05-22) | YOLOv8/v11 object detection per frame. CPU torch, weights cached in bind mount.                 |
 
 ## Architecture
 

@@ -321,3 +321,101 @@ def test_whisper_valid_models_includes_default(tmp_path: Path, monkeypatch):
     cfg = Config.from_env()
     assert cfg.whisper_model in VALID_MODELS
     assert cfg.whisper_compute_type in VALID_COMPUTE_TYPES
+
+
+# ---------------------------------------------------------------------------
+# v0.4.0 — object detection surface
+# ---------------------------------------------------------------------------
+
+
+def test_detect_objects_rejects_unknown_model(tmp_path: Path, monkeypatch):
+    """Unknown YOLO model is rejected before any I/O."""
+    import asyncio
+
+    from uap_analyzer.config import Config
+    from uap_analyzer.corpus import Corpus
+    from uap_analyzer.tools.detect import detect_objects
+
+    monkeypatch.setenv("UAP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("UAP_CACHE_DIR", str(tmp_path / "cache"))
+    (tmp_path / "cache").mkdir()
+    (tmp_path / "fake.mp4").write_bytes(b"\x00")
+    cfg = Config.from_env()
+    corpus = Corpus(cfg.data_dir, cfg.cache_dir)
+
+    with pytest.raises(ValueError, match="unknown YOLO model"):
+        asyncio.run(
+            detect_objects(cfg, corpus, "fake.mp4", model="yolov999n")
+        )
+
+
+def test_detect_objects_rejects_bad_confidence(tmp_path: Path, monkeypatch):
+    """Confidence must be in (0, 1]."""
+    import asyncio
+
+    from uap_analyzer.config import Config
+    from uap_analyzer.corpus import Corpus
+    from uap_analyzer.tools.detect import detect_objects
+
+    monkeypatch.setenv("UAP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("UAP_CACHE_DIR", str(tmp_path / "cache"))
+    (tmp_path / "cache").mkdir()
+    (tmp_path / "fake.mp4").write_bytes(b"\x00")
+    cfg = Config.from_env()
+    corpus = Corpus(cfg.data_dir, cfg.cache_dir)
+
+    with pytest.raises(ValueError, match="confidence must be in"):
+        asyncio.run(detect_objects(cfg, corpus, "fake.mp4", confidence=1.5))
+    with pytest.raises(ValueError, match="confidence must be in"):
+        asyncio.run(detect_objects(cfg, corpus, "fake.mp4", confidence=0))
+
+
+def test_detect_objects_rejects_bad_iou(tmp_path: Path, monkeypatch):
+    """IoU must be in (0, 1]."""
+    import asyncio
+
+    from uap_analyzer.config import Config
+    from uap_analyzer.corpus import Corpus
+    from uap_analyzer.tools.detect import detect_objects
+
+    monkeypatch.setenv("UAP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("UAP_CACHE_DIR", str(tmp_path / "cache"))
+    (tmp_path / "cache").mkdir()
+    (tmp_path / "fake.mp4").write_bytes(b"\x00")
+    cfg = Config.from_env()
+    corpus = Corpus(cfg.data_dir, cfg.cache_dir)
+
+    with pytest.raises(ValueError, match="iou must be in"):
+        asyncio.run(detect_objects(cfg, corpus, "fake.mp4", iou=2.0))
+
+
+def test_detect_aggregate_labels_counts_and_ranks():
+    """Cross-frame aggregation reports total + per-label + frames-with-label
+    + top-5 ranked by total."""
+    from uap_analyzer.tools.detect import _aggregate_labels
+
+    per_frame = [
+        {"detections": [
+            {"label": "person", "confidence": 0.9, "bbox": [0, 0, 10, 10]},
+            {"label": "person", "confidence": 0.7, "bbox": [10, 10, 20, 20]},
+            {"label": "airplane", "confidence": 0.8, "bbox": [0, 0, 100, 100]},
+        ]},
+        {"detections": [
+            {"label": "person", "confidence": 0.85, "bbox": [0, 0, 10, 10]},
+            {"label": "boat", "confidence": 0.5, "bbox": [0, 0, 50, 50]},
+        ]},
+        {"detections": []},
+    ]
+    out = _aggregate_labels(per_frame)
+    assert out["total_detections"] == 5
+    assert out["by_label"] == {"person": 3, "airplane": 1, "boat": 1}
+    assert out["frames_with_label"] == {"person": 2, "airplane": 1, "boat": 1}
+    assert out["top_labels"][0] == "person"
+
+
+def test_detect_valid_models_constant():
+    """VALID_MODELS includes the documented default."""
+    from uap_analyzer.tools.detect import VALID_MODELS
+
+    assert "yolov8n" in VALID_MODELS
+    assert "yolov11n" in VALID_MODELS

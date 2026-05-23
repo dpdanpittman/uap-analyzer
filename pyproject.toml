@@ -1,6 +1,6 @@
 [project]
 name = "uap-analyzer"
-version = "0.3.0"
+version = "0.4.0"
 description = "MCP server for analyzing UAP / Department of War release material (videos + PDFs + photos)"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -31,6 +31,12 @@ dependencies = [
     # to HF_HOME on first use; we point HF_HOME at the cache dir in the
     # Dockerfile so models persist across container rebuilds.
     "faster-whisper>=1.0.0",
+    # Object detection — ultralytics (YOLOv8/v11). Pulls torch + torchvision;
+    # the Dockerfile installs them from the CPU-only pytorch index FIRST so
+    # we don't get the multi-GB CUDA wheels. Local-dev users without a GPU
+    # should `pip install --index-url https://download.pytorch.org/whl/cpu
+    # torch torchvision` before `pip install -e .` to get the same effect.
+    "ultralytics>=8.3.0",
     # Utility
     "pydantic>=2.7",
 ]

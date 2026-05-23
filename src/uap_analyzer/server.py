@@ -11,6 +11,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from .config import Config
 from .corpus import Corpus, serialize_item
 from .tools import audio as audio_tools
+from .tools import detect as detect_tools
 from .tools import flir as flir_tools
 from .tools import image as image_tools
 from .tools import pdf as pdf_tools
@@ -378,6 +379,55 @@ def build_server(cfg: Config | None = None) -> tuple[FastMCP, Config, Corpus]:
             beam_size=beam_size,
             vad_filter=vad_filter,
             max_seconds=max_seconds,
+        )
+
+    # -----------------------------------------------------------------------
+    # detect_objects
+    # -----------------------------------------------------------------------
+    @mcp.tool()
+    async def detect_objects(
+        path: str,
+        at_seconds: float | None = None,
+        sample_count: int = 5,
+        confidence: float = 0.25,
+        iou: float = 0.45,
+        classes: list[str] | None = None,
+        model: str = "yolov8n",
+        width: int = 1280,
+    ) -> dict[str, Any]:
+        """Run YOLO object detection over sampled frames (or one frame).
+
+        Returns per-timestamp lists of [label, confidence, bbox] detections,
+        plus a cross-frame aggregation that counts how often each label
+        appeared and ranks the top labels seen across the sweep.
+
+        IMPORTANT: COCO-pretrained YOLO knows 80 ordinary-world classes
+        (person, airplane, car, boat, …). FLIR / IR-mode footage shows
+        unlabeled thermal blobs that COCO has no category for — expect zero
+        detections on those clips. Useful signal comes from daylight footage,
+        TV-mode footage, and photo material.
+
+        Args:
+            path: Video or image path (relative to UAP_DATA_DIR).
+            at_seconds: If set, detect on a single frame at this timestamp.
+            sample_count: Frames to sample when at_seconds is None. Default 5.
+            confidence: Min confidence to keep a detection. Default 0.25.
+            iou: Non-max-suppression IoU threshold. Default 0.45.
+            classes: Optional COCO label names to filter to (e.g.
+                     ["airplane", "person", "boat"]). None = all 80.
+            model: YOLO variant. yolov8n (default, ~6MB, fast) →
+                   yolov8x (~136MB, accurate). yolov11* accepted too.
+            width: Frame width for inference. Default 1280 (YOLO native).
+        """
+        return await detect_tools.detect_objects(
+            cfg, corpus, path,
+            at_seconds=at_seconds,
+            sample_count=sample_count,
+            confidence=confidence,
+            iou=iou,
+            classes=classes,
+            model=model,
+            width=width,
         )
 
     return mcp, cfg, corpus
