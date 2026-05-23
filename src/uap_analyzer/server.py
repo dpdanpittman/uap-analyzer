@@ -10,6 +10,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 
 from .config import Config
 from .corpus import Corpus, serialize_item
+from .tools import flir as flir_tools
 from .tools import image as image_tools
 from .tools import pdf as pdf_tools
 from .tools import video as video_tools
@@ -277,5 +278,45 @@ def build_server(cfg: Config | None = None) -> tuple[FastMCP, Config, Corpus]:
             "failed": failed[:20],
             "fts_indexed_total": corpus.fts_indexed_count(),
         }
+
+    # -----------------------------------------------------------------------
+    # flir_hud_ocr
+    # -----------------------------------------------------------------------
+    @mcp.tool()
+    async def flir_hud_ocr(
+        path: str,
+        at_seconds: float | None = None,
+        sample_count: int = 5,
+        width: int = 1280,
+        regions: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """OCR burned-in FLIR HUD overlay fields from a video.
+
+        Extracts canonical FLIR HUD fields (classification stamp, mode, zoom,
+        range, bearing, elevation, timecode) by running tesseract on per-corner
+        crops of sampled frames, regex-parsing the OCR output, and aggregating
+        cross-frame consensus.
+
+        Two modes:
+          - single frame: pass `at_seconds=T` to OCR just that timestamp.
+          - sampled (default): samples `sample_count` frames evenly and returns
+            per-frame fields + a consensus dict for stable readings.
+
+        Args:
+            path: Video path (relative to UAP_DATA_DIR).
+            at_seconds: If set, OCR a single frame at this timestamp.
+            sample_count: Frames to sample when at_seconds is None. Default 5.
+            width: Frame width in pixels for OCR. Larger = slower but better OCR.
+            regions: HUD region keys. Defaults to all corners + top/bottom strips.
+                     Valid: top, bottom, top_left, top_right, bottom_left,
+                     bottom_right, full.
+        """
+        return await flir_tools.flir_hud_ocr(
+            cfg, corpus, path,
+            at_seconds=at_seconds,
+            sample_count=sample_count,
+            width=width,
+            regions=regions,
+        )
 
     return mcp, cfg, corpus
