@@ -1,26 +1,26 @@
 ---
 import Base from '../layouts/Base.astro';
 ---
-<Base title="Tools" description="The 7 MCP tools the uap-analyzer server exposes: list_corpus, analyze_video, extract_frame, describe_image, analyze_pdf, search_corpus, index_corpus.">
+<Base title="Tools" description="The 10 MCP tools the uap-analyzer server exposes: list_corpus, analyze_video, extract_frame, describe_image, analyze_pdf, search_corpus, index_corpus, flir_hud_ocr, transcribe_audio, detect_objects.">
 
   <div class="max-w-5xl mx-auto px-6 py-16">
 
     <section class="mb-12">
       <div class="flex items-center gap-3 mb-3">
-        <span class="stamp text-accent-green">// TOOL REFERENCE</span>
+        <span class="stamp text-accent-green">// TOOL REFERENCE · v0.4.0</span>
       </div>
       <h1 class="text-4xl font-bold mb-4 leading-tight text-text">MCP tools</h1>
       <p class="text-base text-muted leading-relaxed max-w-2xl prose-body">
-        Seven tools the LLM session can call by name. All return text or structured JSON; raw media stays in the container. Phase 3 tools are tracked but not yet implemented.
+        Ten tools the LLM session can call by name. All return text or structured JSON; raw media stays in the container. Original Phase 3 backlog (audio, HUD-OCR, object detection) shipped across the v0.2.x – v0.4.x releases.
       </p>
     </section>
 
     <section class="mb-12">
       <div class="flex items-baseline justify-between mb-4 font-mono">
-        <h2 class="text-2xl font-bold text-text">/// PHASE 1 + 2 — LIVE</h2>
+        <h2 class="text-2xl font-bold text-text">/// LIVE — 10 OPERATIONAL</h2>
         <span class="text-[10px] text-accent-green tracking-widest flex items-center gap-2 hidden sm:inline-flex">
           <span class="inline-block w-1.5 h-1.5 rounded-full bg-accent-green shadow-green-glow pulse-soft"></span>
-          7 OPERATIONAL
+          v0.4.0 · 2026-05-22
         </span>
       </div>
       <div class="space-y-5">
@@ -102,34 +102,73 @@ import Base from '../layouts/Base.astro';
           </p>
         </div>
 
+        <div class="bg-panel rounded-sm p-5 border border-border hover:border-accent-green/60 transition">
+          <p class="text-xs font-mono text-warm mb-2 tracking-widest">[ T-08 ] FLIR · v0.2.0 / v0.2.1</p>
+          <h3 class="text-lg font-semibold text-accent mb-2 font-mono"><code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-base">flir_hud_ocr</code></h3>
+          <p class="text-sm text-muted leading-relaxed mb-2 prose-body">
+            Extract burned-in FLIR HUD overlay fields — classification stamp, mode (BLK/WHT/IR/TV/CAM/NUC), zoom (x4.0 or NAR/MED/WIDE), range_nm, bearing_deg, elevation_deg, timecode — from sampled frames. Two extraction modes:
+          </p>
+          <p class="text-sm text-muted leading-relaxed mb-2 prose-body">
+            <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">mode='ocr'</code> (default) — tesseract on per-corner crops with light preprocessing, then regex-parse. Fast and cheap. Best for clear, high-contrast overlays.
+          </p>
+          <p class="text-sm text-muted leading-relaxed prose-body">
+            <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">mode='vision'</code> — qwen2.5vl:7b via ollama with structured-JSON output. Slower (~1.5s/frame after model load) but accurate on FLIR HUDs where tesseract struggles. Smoke results: 5/5 candidate clips surfaced stable readings vs 1/5 in ocr mode.
+          </p>
+        </div>
+
+        <div class="bg-panel rounded-sm p-5 border border-border hover:border-accent-green/60 transition">
+          <p class="text-xs font-mono text-warm mb-2 tracking-widest">[ T-09 ] AUDIO · v0.3.0</p>
+          <h3 class="text-lg font-semibold text-accent mb-2 font-mono"><code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-base">transcribe_audio</code></h3>
+          <p class="text-sm text-muted leading-relaxed mb-2 prose-body">
+            Speech-to-text via faster-whisper (CPU, int8). Extracts audio from video/audio files through ffmpeg (16 kHz mono WAV in cache), runs the model, returns timestamped segments + full text + auto-detected language. Default model <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">base.en</code> (75MB, ~4× realtime on CPU); bump to <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">small.en</code>/<code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">medium.en</code> for jargon-heavy clips.
+          </p>
+          <p class="text-sm text-muted leading-relaxed prose-body">
+            Module-level model cache; audio extract result is cached on disk; whisper inference result lands in the SQLite cache. <em class="text-warm not-italic">Corpus note:</em> current UAP videos all have audio streams but no audio content — declassified footage has the cockpit audio stripped. Tool is verified end-to-end and ready for any future audio-bearing material.
+          </p>
+        </div>
+
+        <div class="bg-panel rounded-sm p-5 border border-border hover:border-accent-green/60 transition">
+          <p class="text-xs font-mono text-warm mb-2 tracking-widest">[ T-10 ] DETECT · v0.4.0</p>
+          <h3 class="text-lg font-semibold text-accent mb-2 font-mono"><code class="bg-code-bg border border-code-border px-1.5 py-0.5 rounded text-base">detect_objects</code></h3>
+          <p class="text-sm text-muted leading-relaxed mb-2 prose-body">
+            YOLOv8/v11 object detection (ultralytics, CPU-only torch). Samples N frames (or one timestamp/single image), returns per-timestamp <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">[label, confidence, bbox]</code> lists plus a cross-frame aggregation (total + by-label counts + top-5 ranked labels). Default <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">yolov8n</code> (~6MB, ~150-300ms/frame); <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">classes=['airplane', 'person']</code> filters to COCO whitelist.
+          </p>
+          <p class="text-sm text-muted leading-relaxed prose-body">
+            <em class="text-warm not-italic">FLIR caveat:</em> COCO has 80 ordinary-world classes — no category for thermal blobs. Smoke shows every IR contact gets nearest-neighbor-labeled as <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">kite</code> at 0.27-0.58 confidence. Useful diagnostically: clusters of low-conf <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">kite</code> at consistent bboxes across frames is a signature of a tracked unmoving thermal contact.
+          </p>
+        </div>
+
       </div>
     </section>
 
     <section class="mb-12">
       <div class="flex items-baseline justify-between mb-4 font-mono">
-        <h2 class="text-2xl font-bold text-text">/// PHASE 3 — PLANNED</h2>
-        <span class="text-[10px] text-muted tracking-widest hidden sm:inline">4 BACKLOG</span>
+        <h2 class="text-2xl font-bold text-text">/// PLANNED</h2>
+        <span class="text-[10px] text-muted tracking-widest hidden sm:inline">CORPUS-AWARE</span>
       </div>
+      <p class="text-sm text-muted leading-relaxed max-w-3xl prose-body mb-4">
+        With all four primitives shipped (HUD-OCR, audio, detection, vision-describe), the next wave is composition. Each draws on the existing tools rather than adding new inference.
+      </p>
       <div class="grid md:grid-cols-2 gap-4">
         <div class="bg-panel/60 rounded-sm p-5 border border-border/60">
-          <p class="text-xs font-mono text-muted mb-2 tracking-widest">// PLANNED</p>
-          <h3 class="font-semibold text-text mb-2 font-mono"><code class="text-sm bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">audio_transcribe</code></h3>
-          <p class="text-sm text-muted leading-relaxed prose-body">whisper.cpp transcripts of pilot radio + crew voice in MP4 audio tracks. Highest-value Phase 3 candidate.</p>
+          <p class="text-xs font-mono text-muted mb-2 tracking-widest">// CONCEPT</p>
+          <h3 class="font-semibold text-text mb-2 font-mono"><code class="text-sm bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">cross_corpus_thread</code></h3>
+          <p class="text-sm text-muted leading-relaxed prose-body">Given a search query, return PDF hits + matching video timestamps (where vision-describe mentions the same entity). Knits the FTS5 index to the video-describe results.</p>
         </div>
         <div class="bg-panel/60 rounded-sm p-5 border border-border/60">
-          <p class="text-xs font-mono text-muted mb-2 tracking-widest">// PLANNED</p>
+          <p class="text-xs font-mono text-muted mb-2 tracking-widest">// CONCEPT</p>
+          <h3 class="font-semibold text-text mb-2 font-mono"><code class="text-sm bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">generate_report</code></h3>
+          <p class="text-sm text-muted leading-relaxed prose-body">Take a topic + corpus query, return a markdown report with citations. Synthesizes the manual reports/ pattern already in the repo.</p>
+        </div>
+        <div class="bg-panel/60 rounded-sm p-5 border border-border/60">
+          <p class="text-xs font-mono text-muted mb-2 tracking-widest">// CONCEPT</p>
+          <h3 class="font-semibold text-text mb-2 font-mono"><code class="text-sm bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">compare_videos</code></h3>
+          <p class="text-sm text-muted leading-relaxed prose-body">Two video paths in, structural diff out — same sensor / different sensor, same mode / mode-flip, HUD overlap, vision-describe semantic overlap.</p>
+        </div>
+        <div class="bg-panel/60 rounded-sm p-5 border border-border/60">
+          <p class="text-xs font-mono text-muted mb-2 tracking-widest">// CONCEPT</p>
           <h3 class="font-semibold text-text mb-2 font-mono"><code class="text-sm bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">compare_to_known</code></h3>
-          <p class="text-sm text-muted leading-relaxed prose-body">Match candidate frames against a library of known mundane explanations (balloons, satellites, ATFLIR artifacts). Half-day build.</p>
-        </div>
-        <div class="bg-panel/60 rounded-sm p-5 border border-border/60">
-          <p class="text-xs font-mono text-muted mb-2 tracking-widest">// PLANNED</p>
-          <h3 class="font-semibold text-text mb-2 font-mono"><code class="text-sm bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">flir_hud_ocr</code></h3>
-          <p class="text-sm text-muted leading-relaxed prose-body">Extract HUD metadata (range, bearing, time) from FLIR overlays. Limited by how much is redacted on the war.gov releases.</p>
-        </div>
-        <div class="bg-panel/60 rounded-sm p-5 border border-border/60">
-          <p class="text-xs font-mono text-muted mb-2 tracking-widest">// PLANNED</p>
-          <h3 class="font-semibold text-text mb-2 font-mono"><code class="text-sm bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">detect_objects</code></h3>
-          <p class="text-sm text-muted leading-relaxed prose-body">YOLO per-frame object detection. Lower value on FLIR — wrong domain — but useful on the FBI/NASA photo packets.</p>
+          <p class="text-sm text-muted leading-relaxed prose-body">Match candidate frames against a library of known mundane explanations (balloons, satellites, ATFLIR artifacts). Reference library still to build.</p>
         </div>
       </div>
     </section>
