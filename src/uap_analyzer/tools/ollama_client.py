@@ -38,14 +38,18 @@ class OllamaClient:
         messages: list[dict[str, Any]],
         temperature: float = 0.2,
         max_tokens: int = 4096,
+        json_mode: bool = False,
     ) -> dict[str, Any]:
         url = f"{self.cfg.ollama_host}/api/chat"
-        body = {
+        body: dict[str, Any] = {
             "model": model,
             "stream": False,
             "messages": messages,
             "options": {"temperature": temperature, "num_predict": max_tokens},
         }
+        if json_mode:
+            # ollama's "format": "json" constrains decoding to a valid JSON object.
+            body["format"] = "json"
         resp = await self._client.post(url, json=body)
         if resp.status_code != 200:
             raise OllamaError(f"ollama {resp.status_code}: {resp.text[:400]}")
@@ -65,6 +69,7 @@ class OllamaClient:
         temperature: float = 0.1,
         max_tokens: int = 768,
         model: str | None = None,
+        json_mode: bool = False,
     ) -> dict[str, Any]:
         b64 = base64.b64encode(image_path.read_bytes()).decode()
         return await self.chat(
@@ -72,6 +77,7 @@ class OllamaClient:
             messages=[{"role": "user", "content": prompt, "images": [b64]}],
             temperature=temperature,
             max_tokens=max_tokens,
+            json_mode=json_mode,
         )
 
     async def text_chat(

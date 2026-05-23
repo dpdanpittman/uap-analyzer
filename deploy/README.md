@@ -27,13 +27,24 @@ Total: ~2.5 GB of data over the LAN. First run will take a few minutes.
 
 ## Subsequent code-only deploys
 
-After the first run, skip the corpus rsync:
+Prefer the idempotent code-only path:
 
 ```bash
-./deploy/zaphod-bootstrap.sh --skip-corpus
+./deploy/zaphod-deploy.sh              # rsync + build + restart + healthz check
+./deploy/zaphod-deploy.sh --no-build   # source-only push (no rebuild)
+./deploy/zaphod-deploy.sh --no-restart # build but leave the running container
 ```
 
-That's a ~5-second redeploy: just rsync code, rebuild, restart container.
+`zaphod-deploy.sh` is the canonical redeploy entrypoint. It pins the rsync
+exclude set so `.env`, `node_modules`, `dist`, `.git`, and `__pycache__`
+never get pushed or deleted on the remote. **Do not** use a plain
+`rsync -aP --delete` against `~/src/uap-analyzer/` on zaphod — it will
+wipe the deploy-host `.env` (gitignored locally so it's not in the source
+tree) and the container will silently fall back to mounting an empty
+`/srv/uap-data` (regression learned 2026-05-22).
+
+The legacy `zaphod-bootstrap.sh --skip-corpus` still works but is less safe;
+`zaphod-deploy.sh` is preferred.
 
 ## Verify
 
@@ -60,14 +71,32 @@ ssh -p 2222 zaphod-beeblebox@192.168.6.56 'docker logs uap-analyzer --tail 50'
 claude mcp add --transport http uap-analyzer http://192.168.6.56:3260/mcp
 ```
 
-## Phase 2 prerequisite: pull the vision model
+## Models on the host ollama
 
-Once Phase 2 lands, before the first `describe_image` call:
+uap-analyzer uses three models, all served by the native ollama daemon on
+zaphod at `http://localhost:11434`:
+
+| Env var               | Default               | Used by                                            |
+| --------------------- | --------------------- | -------------------------------------------------- |
+| `OLLAMA_TEXT_MODEL`   | `qwq:32b`             | `analyze_pdf(mode="summary")`                      |
+| `OLLAMA_VISION_MODEL` | `llama3.2-vision:11b` | `describe_image`, `analyze_video(mode="describe")` |
+| `OLLAMA_HUD_MODEL`    | `qwen2.5vl:7b`        | `flir_hud_ocr(mode="vision")`                      |
+
+Pull a model via the HTTP API (the ollama CLI may not be on the deploy-user PATH):
 
 ```bash
-ssh -p 2222 zaphod-beeblebox@192.168.6.56 'docker exec -it $(docker ps -qf name=ollama) ollama pull qwen2-vl:7b'
-# or, if ollama runs natively (not in docker):
-ssh -p 2222 zaphod-beeblebox@192.168.6.56 'ollama pull qwen2-vl:7b'
+ssh zaphod-beeblebox@192.168.6.56 \
+  'curl -sN -X POST http://localhost:11434/api/pull \
+     -H "Content-Type: application/json" \
+     -d "{\"model\":\"qwen2.5vl:7b\",\"stream\":true}" \
+   | grep status'
+```
+
+Verify a model is loaded:
+
+```bash
+ssh zaphod-beeblebox@192.168.6.56 \
+  'curl -fsS http://localhost:11434/api/tags' | jq '.models[].name'
 ```
 
 ## Tear down

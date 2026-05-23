@@ -172,3 +172,94 @@ def test_flir_hud_ocr_rejects_unknown_region(tmp_path: Path, monkeypatch):
         asyncio.run(
             flir_hud_ocr(cfg, corpus, "fake.mp4", regions=["nowhere"])
         )
+
+
+def test_flir_hud_ocr_rejects_unknown_mode(tmp_path: Path, monkeypatch):
+    """mode= must be 'ocr' or 'vision'."""
+    import asyncio
+
+    from uap_analyzer.config import Config
+    from uap_analyzer.corpus import Corpus
+    from uap_analyzer.tools.flir import flir_hud_ocr
+
+    monkeypatch.setenv("UAP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("UAP_CACHE_DIR", str(tmp_path / "cache"))
+    (tmp_path / "cache").mkdir()
+    (tmp_path / "fake.mp4").write_bytes(b"\x00")
+    cfg = Config.from_env()
+    corpus = Corpus(cfg.data_dir, cfg.cache_dir)
+
+    with pytest.raises(ValueError, match="unknown mode"):
+        asyncio.run(flir_hud_ocr(cfg, corpus, "fake.mp4", mode="psychic"))
+
+
+# ---------------------------------------------------------------------------
+# v0.2.1 — vision-mode normalization
+# ---------------------------------------------------------------------------
+
+
+def test_flir_normalize_vision_full():
+    """Vision mode output normalizes to the same field shape as OCR mode."""
+    from uap_analyzer.tools.flir import _normalize_vision_fields
+
+    raw = {
+        "classification": "unclassified",
+        "mode": "blk",
+        "zoom": "x4.0",
+        "range_nm": 3.2,
+        "bearing_deg": 274,
+        "elevation_deg": -12,
+        "timecode": "00:12:33",
+        "raw_text": "ignored",
+    }
+    fields = _normalize_vision_fields(raw)
+    assert fields["classification"] == "UNCLASSIFIED"
+    assert fields["mode"] == "BLK"
+    assert fields["zoom"] == "x4.0"
+    assert fields["range_nm"] == 3.2
+    assert fields["bearing_deg"] == 274.0
+    assert fields["elevation_deg"] == -12.0
+    assert fields["timecode"] == "00:12:33"
+
+
+def test_flir_normalize_vision_drops_null():
+    """Null fields from the vision model are dropped, not stored."""
+    from uap_analyzer.tools.flir import _normalize_vision_fields
+
+    raw = {
+        "classification": None,
+        "mode": "WHT",
+        "zoom": None,
+        "range_nm": None,
+        "bearing_deg": None,
+        "elevation_deg": None,
+        "timecode": None,
+    }
+    fields = _normalize_vision_fields(raw)
+    assert fields == {"mode": "WHT"}
+
+
+def test_flir_normalize_vision_rejects_garbage():
+    """Out-of-range numerics and invalid enums are silently dropped, not coerced."""
+    from uap_analyzer.tools.flir import _normalize_vision_fields
+
+    raw = {
+        "classification": "MADE_UP",
+        "mode": "NotARealMode",
+        "zoom": "xyz",
+        "range_nm": -5,
+        "bearing_deg": 999,
+        "elevation_deg": 200,
+        "timecode": "not a time",
+    }
+    fields = _normalize_vision_fields(raw)
+    assert fields == {}
+
+
+def test_flir_normalize_vision_fov_zoom_token_uppercased():
+    """FOV-token zoom is uppercased; numeric zoom keeps its 'x' prefix as-is."""
+    from uap_analyzer.tools.flir import _normalize_vision_fields
+
+    assert _normalize_vision_fields({"zoom": "nar"})["zoom"] == "NAR"
+    assert _normalize_vision_fields({"zoom": "med"})["zoom"] == "MED"
+    assert _normalize_vision_fields({"zoom": "x10"})["zoom"] == "x10"

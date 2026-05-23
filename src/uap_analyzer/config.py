@@ -14,6 +14,7 @@ class Config:
     ollama_host: str
     ollama_text_model: str
     ollama_vision_model: str
+    ollama_hud_model: str
     ollama_timeout: int
     host: str
     port: int
@@ -33,6 +34,9 @@ class Config:
             ollama_host=os.environ.get("OLLAMA_HOST", "http://192.168.6.56:11434"),
             ollama_text_model=os.environ.get("OLLAMA_TEXT_MODEL", "qwq:32b"),
             ollama_vision_model=os.environ.get("OLLAMA_VISION_MODEL", "llama3.2-vision:11b"),
+            # qwen2.5vl benchmarks better on structured-OCR than llama3.2-vision; used
+            # specifically by flir_hud_ocr(mode="vision") for field-level extraction.
+            ollama_hud_model=os.environ.get("OLLAMA_HUD_MODEL", "qwen2.5vl:7b"),
             ollama_timeout=int(os.environ.get("OLLAMA_TIMEOUT", "300")),
             host=os.environ.get("UAP_HOST", "0.0.0.0"),
             port=int(os.environ.get("UAP_PORT", "3260")),

@@ -4,19 +4,18 @@ MCP server that analyzes UAP / Department of War release material. Offloads heav
 
 ## What it does
 
-| Tool               | Status                     | Purpose                                                                             |
-| ------------------ | -------------------------- | ----------------------------------------------------------------------------------- |
-| `list_corpus`      | ✅ v1                      | List indexed videos / PDFs / photos with metadata                                   |
-| `analyze_video`    | ✅ v1                      | ffprobe metadata + frame sampling + vision-describe (qwen2-vl)                      |
-| `extract_frame`    | ✅ v1                      | Pull a single frame at a timestamp                                                  |
-| `analyze_pdf`      | ✅ v1                      | pdfplumber text + tesseract OCR fallback + summary via local text model             |
-| `describe_image`   | ✅ v1                      | Vision-describe any image via ollama qwen2-vl                                       |
-| `search_corpus`    | ✅ v1                      | Full-text search across indexed PDFs (sqlite-fts5, bm25 ranking, FTS5 syntax)       |
-| `index_corpus`     | ✅ v1                      | Bulk-index PDFs (with OCR fallback) into the search index                           |
-| `flir_hud_ocr`     | ✅ **v0.2.0** (2026-05-22) | Extract HUD overlay fields via tesseract (mode, zoom, range, bearing, elevation)    |
-| `flir_hud_ocr`     | ⏳ v0.2.1                  | Vision-mode HUD extraction via qwen2-vl with structured JSON output (more accurate) |
-| `audio_transcribe` | ⏳ v0.3.0                  | whisper transcripts                                                                 |
-| `detect_objects`   | ⏳ v0.4.0                  | YOLO per-frame                                                                      |
+| Tool               | Status                     | Purpose                                                                                         |
+| ------------------ | -------------------------- | ----------------------------------------------------------------------------------------------- |
+| `list_corpus`      | ✅ v1                      | List indexed videos / PDFs / photos with metadata                                               |
+| `analyze_video`    | ✅ v1                      | ffprobe metadata + frame sampling + vision-describe (qwen2-vl)                                  |
+| `extract_frame`    | ✅ v1                      | Pull a single frame at a timestamp                                                              |
+| `analyze_pdf`      | ✅ v1                      | pdfplumber text + tesseract OCR fallback + summary via local text model                         |
+| `describe_image`   | ✅ v1                      | Vision-describe any image via ollama qwen2-vl                                                   |
+| `search_corpus`    | ✅ v1                      | Full-text search across indexed PDFs (sqlite-fts5, bm25 ranking, FTS5 syntax)                   |
+| `index_corpus`     | ✅ v1                      | Bulk-index PDFs (with OCR fallback) into the search index                                       |
+| `flir_hud_ocr`     | ✅ **v0.2.1** (2026-05-22) | Extract HUD overlay fields. Two modes: `ocr` (tesseract, fast) / `vision` (qwen2.5vl, accurate) |
+| `audio_transcribe` | ⏳ v0.3.0                  | whisper transcripts                                                                             |
+| `detect_objects`   | ⏳ v0.4.0                  | YOLO per-frame                                                                                  |
 
 ## Architecture
 

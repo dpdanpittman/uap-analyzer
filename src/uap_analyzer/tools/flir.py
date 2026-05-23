@@ -61,6 +61,44 @@ RE_HEADING_3DIG = re.compile(r"\b(\d{3})\b")  # bare 3-digit token (often headin
 # Corner crop fractions. FLIR HUDs cluster overlays in the four corners + the
 # top/bottom strips; running OCR on each region separately gives tesseract a
 # cleaner page-segmentation hint than full-frame.
+# ----------------------------------------------------------------------------
+# Vision-mode prompt — strictly structured-output extraction. Used by
+# flir_hud_ocr(mode="vision"). Paired with ollama's `format: "json"` decoding
+# constraint, this yields parseable JSON with the same field shape as the
+# OCR-mode regex parser.
+# ----------------------------------------------------------------------------
+
+FLIR_HUD_VISION_PROMPT = """You are analyzing a single frame from a US military FLIR / IR
+targeting pod video (ATFLIR, Litening pod, AAQ-28, etc.) released by the
+Department of War as UAP disclosure material.
+
+Your task is HUD-text extraction only. Read any burned-in HUD overlay text
+visible on the frame and return a strict JSON object with these fields.
+Return `null` for any field that is not clearly legible — do not guess.
+
+Schema:
+{
+  "classification": one of "TOP SECRET" | "SECRET" | "CONFIDENTIAL" | "UNCLASSIFIED" | "FOUO" | "NOFORN" | null,
+  "mode": one of "BLK" | "WHT" | "IR" | "TV" | "CAM" | "RGB" | "NUC" | null,
+  "zoom": string like "x4.0" or one of "NAR" | "MED" | "WIDE" | null,
+  "range_nm": number (nautical miles, e.g. 3.2) or null,
+  "bearing_deg": integer 0..360 or null,
+  "elevation_deg": integer -90..90 or null,
+  "timecode": string "HH:MM:SS" or null,
+  "raw_text": short string with the verbatim HUD text you read (for audit), or empty string
+}
+
+Rules:
+- If you cannot read a field with high confidence, return null for it.
+- Do not infer fields from context — only report what is visibly burned into the HUD overlay.
+- Return ONLY the JSON object. No prose, no explanation, no markdown fences.
+"""
+
+# Fields the vision response is allowed to return — used for cross-mode
+# normalization so OCR mode and vision mode produce comparable outputs.
+VISION_FIELDS = ("classification", "mode", "zoom", "range_nm", "bearing_deg", "elevation_deg", "timecode")
+
+
 HUD_REGIONS: dict[str, tuple[float, float, float, float]] = {
     # (left, upper, right, lower) as fractions of (W, H)
     "top":          (0.00, 0.00, 1.00, 0.18),
@@ -210,45 +248,151 @@ def _consensus(per_frame: list[dict[str, Any]]) -> dict[str, Any]:
 # ----------------------------------------------------------------------------
 
 
+def _normalize_vision_fields(raw: dict[str, Any]) -> dict[str, Any]:
+    """Validate + coerce the vision model's JSON output into the same field
+    shape as the OCR-mode regex parser. Drops anything null, out-of-range, or
+    not in the allowed enum set so consensus aggregation stays consistent
+    across modes."""
+    out: dict[str, Any] = {}
+
+    cls = raw.get("classification")
+    if isinstance(cls, str) and cls.upper() in {t.upper() for t in CLASSIFICATION_TOKENS}:
+        out["classification"] = cls.upper()
+
+    mode = raw.get("mode")
+    if isinstance(mode, str) and mode.upper() in {t.upper() for t in MODE_TOKENS}:
+        out["mode"] = mode.upper()
+
+    zoom = raw.get("zoom")
+    if isinstance(zoom, str) and zoom.strip():
+        z = zoom.strip()
+        # Accept either "x4.0" form or a FOV token.
+        if RE_ZOOM_NUMERIC.search(z) or z.upper() in {t.upper() for t in ZOOM_FOV_TOKENS}:
+            out["zoom"] = z if z.startswith("x") or z.startswith("X") else z.upper()
+
+    rng = raw.get("range_nm")
+    if isinstance(rng, (int, float)) and 0 < rng < 1000:
+        out["range_nm"] = float(rng)
+
+    brg = raw.get("bearing_deg")
+    if isinstance(brg, (int, float)) and 0 <= brg <= 360:
+        out["bearing_deg"] = float(brg)
+
+    el = raw.get("elevation_deg")
+    if isinstance(el, (int, float)) and -90 <= el <= 90:
+        out["elevation_deg"] = float(el)
+
+    tc = raw.get("timecode")
+    if isinstance(tc, str) and RE_TIMECODE.match(tc.strip()):
+        out["timecode"] = tc.strip()
+
+    return out
+
+
+async def _vision_extract_frame(
+    cfg: Config, frame_path: Path, *, model: str | None = None
+) -> dict[str, Any]:
+    """Send a frame to the vision model with the structured-HUD prompt; parse
+    JSON back; return (normalized_fields_dict, raw_model_text, model_used).
+    """
+    from .ollama_client import OllamaClient
+
+    client = OllamaClient(cfg)
+    try:
+        resp = await client.describe_image(
+            frame_path,
+            FLIR_HUD_VISION_PROMPT,
+            temperature=0.05,
+            max_tokens=512,
+            model=model or cfg.ollama_hud_model,
+            json_mode=True,
+        )
+    finally:
+        await client.aclose()
+
+    content = (resp.get("content") or "").strip()
+    parsed: dict[str, Any] = {}
+    raw_text = ""
+    try:
+        import json as _json
+        # ollama JSON mode is usually clean; defensive parse in case the model
+        # wrapped the JSON in markdown fences anyway.
+        if content.startswith("```"):
+            content = content.strip("`")
+            if content.lower().startswith("json\n"):
+                content = content[5:]
+        obj = _json.loads(content) if content else {}
+        if isinstance(obj, dict):
+            parsed = obj
+            raw_text = str(obj.get("raw_text", ""))[:240]
+    except (ValueError, TypeError) as e:
+        log.warning("vision-mode JSON parse failed: %s; content=%s", e, content[:200])
+
+    fields = _normalize_vision_fields(parsed)
+    return {
+        "fields": fields,
+        "raw_text": raw_text,
+        "model": resp.get("model") or cfg.ollama_hud_model,
+        "duration_s": resp.get("total_duration_s"),
+    }
+
+
 async def flir_hud_ocr(
     cfg: Config,
     corpus: Corpus,
     rel_path: str,
     *,
+    mode: str = "ocr",
     at_seconds: float | None = None,
     sample_count: int = 5,
     width: int = 1280,
     regions: list[str] | None = None,
+    vision_model: str | None = None,
 ) -> dict[str, Any]:
-    """OCR FLIR HUD overlay fields from a video.
+    """Extract FLIR HUD overlay fields from a video.
 
-    Two modes:
-      - single frame: pass `at_seconds=T` to OCR just that frame.
-      - sampled: omit `at_seconds`; the tool samples `sample_count` frames evenly
-        across the video and aggregates a consensus.
+    Two extraction modes:
+      - "ocr" (default): tesseract over per-corner crops. Fast and cheap. Best for
+        clear, high-contrast HUD overlays. Returns lots of raw_text per region.
+      - "vision": qwen2.5vl (or any ollama vision model) with a structured-JSON
+        prompt. Slower but far more accurate on FLIR HUDs where tesseract
+        struggles (anti-aliased fonts, low-contrast IR backgrounds).
+
+    Two sampling modes:
+      - single frame: pass `at_seconds=T` to extract just that timestamp.
+      - sampled (default): samples `sample_count` frames evenly across the video.
 
     Args:
         rel_path: Video path relative to UAP_DATA_DIR.
-        at_seconds: If set, OCR a single frame at that timestamp.
-        sample_count: How many frames to sample when at_seconds is None. Default 5.
-        width: Frame width in pixels for OCR. Bigger = slower but better OCR.
-        regions: Which HUD regions to OCR. Defaults to all corners + top/bottom strips.
+        mode: "ocr" (tesseract) | "vision" (qwen2.5vl).
+        at_seconds: If set, extract a single frame at this timestamp.
+        sample_count: Frames to sample when at_seconds is None. Default 5.
+        width: Frame width in pixels. Bigger = slower but better extraction.
+        regions: HUD regions for ocr mode. Ignored in vision mode (model sees
+                 the whole frame). Defaults to all corners + top/bottom strips.
+        vision_model: Override OLLAMA_HUD_MODEL for vision mode (e.g. switch
+                      to llama3.2-vision:11b for comparison).
     """
+    if mode not in ("ocr", "vision"):
+        raise ValueError(f"unknown mode {mode!r}; valid: 'ocr', 'vision'")
+
     use_regions = regions or ["top", "bottom", "top_left", "top_right", "bottom_left", "bottom_right"]
-    unknown = [r for r in use_regions if r not in HUD_REGIONS]
-    if unknown:
-        raise ValueError(f"unknown HUD region(s): {unknown}. valid: {sorted(HUD_REGIONS)}")
+    if mode == "ocr":
+        unknown = [r for r in use_regions if r not in HUD_REGIONS]
+        if unknown:
+            raise ValueError(f"unknown HUD region(s): {unknown}. valid: {sorted(HUD_REGIONS)}")
 
     abs_path = cfg.resolve_corpus_path(rel_path)
     if not abs_path.is_file():
         raise FileNotFoundError(rel_path)
 
     region_key = ",".join(sorted(use_regions))
+    model_key = (vision_model or cfg.ollama_hud_model).replace(":", "_") if mode == "vision" else "n/a"
     if at_seconds is not None:
-        cache_key = f"v1|t{at_seconds:.2f}|w{width}|{region_key}"
+        cache_key = f"v2|m{mode}|t{at_seconds:.2f}|w{width}|{region_key}|{model_key}"
     else:
-        cache_key = f"v1|n{sample_count}|w{width}|{region_key}"
-    cached = corpus.get_cached(rel_path, "flir_hud_ocr", "default", cache_key)
+        cache_key = f"v2|m{mode}|n{sample_count}|w{width}|{region_key}|{model_key}"
+    cached = corpus.get_cached(rel_path, "flir_hud_ocr", mode, cache_key)
     if cached:
         return cached
 
@@ -275,29 +419,52 @@ async def flir_hud_ocr(
             log.warning("frame missing on disk: %s", abs_frame)
             continue
 
-        img = Image.open(abs_frame)
-        region_texts: dict[str, str] = {}
-        for r in use_regions:
-            txt = _ocr_region(img, HUD_REGIONS[r])
-            txt = txt.strip()
-            if txt:
-                region_texts[r] = txt
+        if mode == "ocr":
+            img = Image.open(abs_frame)
+            region_texts: dict[str, str] = {}
+            for r in use_regions:
+                txt = _ocr_region(img, HUD_REGIONS[r])
+                txt = txt.strip()
+                if txt:
+                    region_texts[r] = txt
+            joined = "\n".join(region_texts.values())
+            fields = _parse_fields(joined)
 
-        joined = "\n".join(region_texts.values())
-        fields = _parse_fields(joined)
+            per_frame.append({
+                "at_seconds": f["at_seconds"],
+                "at_percent": f.get("at_percent"),
+                "frame_path": f["frame_path"],
+                "extraction_mode": "ocr",
+                "raw_text": joined,
+                "region_texts": region_texts,
+                "fields": fields,
+                "field_count": len(fields),
+            })
+        else:
+            # vision mode
+            try:
+                v = await _vision_extract_frame(cfg, abs_frame, model=vision_model)
+            except Exception as e:  # noqa: BLE001
+                log.warning("vision extract failed at t=%s: %r", f.get("at_seconds"), e)
+                v = {"fields": {}, "raw_text": "", "model": None, "duration_s": None,
+                     "error": str(e)[:240]}
 
-        per_frame.append({
-            "at_seconds": f["at_seconds"],
-            "at_percent": f.get("at_percent"),
-            "frame_path": f["frame_path"],
-            "raw_text": joined,
-            "region_texts": region_texts,
-            "fields": fields,
-            "field_count": len(fields),
-        })
+            per_frame.append({
+                "at_seconds": f["at_seconds"],
+                "at_percent": f.get("at_percent"),
+                "frame_path": f["frame_path"],
+                "extraction_mode": "vision",
+                "raw_text": v.get("raw_text", ""),
+                "fields": v["fields"],
+                "field_count": len(v["fields"]),
+                "model": v.get("model"),
+                "duration_s": v.get("duration_s"),
+                **({"error": v["error"]} if "error" in v else {}),
+            })
 
     result: dict[str, Any] = {
         "path": rel_path,
+        "mode": mode,
         "frame_count": len(per_frame),
         "frames": per_frame,
         "consensus": _consensus(per_frame),
@@ -305,7 +472,10 @@ async def flir_hud_ocr(
             k for f in per_frame for k in f["fields"]
         }),
     }
-    corpus.put_cached(rel_path, "flir_hud_ocr", "default", cache_key, result)
+    if mode == "vision":
+        result["vision_model"] = vision_model or cfg.ollama_hud_model
+
+    corpus.put_cached(rel_path, "flir_hud_ocr", mode, cache_key, result)
     return result
 
 

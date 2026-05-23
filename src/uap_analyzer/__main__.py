@@ -43,6 +43,7 @@ def build_app():
                 "cache_dir": str(cfg.cache_dir),
                 "ollama_host": cfg.ollama_host,
                 "vision_model": cfg.ollama_vision_model,
+                "hud_model": cfg.ollama_hud_model,
                 "text_model": cfg.ollama_text_model,
                 "corpus_items": len(corpus.list()),
             }

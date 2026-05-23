@@ -285,38 +285,49 @@ def build_server(cfg: Config | None = None) -> tuple[FastMCP, Config, Corpus]:
     @mcp.tool()
     async def flir_hud_ocr(
         path: str,
+        mode: str = "ocr",
         at_seconds: float | None = None,
         sample_count: int = 5,
         width: int = 1280,
         regions: list[str] | None = None,
+        vision_model: str | None = None,
     ) -> dict[str, Any]:
-        """OCR burned-in FLIR HUD overlay fields from a video.
+        """Extract burned-in FLIR HUD overlay fields from a video.
 
         Extracts canonical FLIR HUD fields (classification stamp, mode, zoom,
-        range, bearing, elevation, timecode) by running tesseract on per-corner
-        crops of sampled frames, regex-parsing the OCR output, and aggregating
-        cross-frame consensus.
+        range, bearing, elevation, timecode) and aggregates cross-frame consensus.
 
-        Two modes:
-          - single frame: pass `at_seconds=T` to OCR just that timestamp.
-          - sampled (default): samples `sample_count` frames evenly and returns
-            per-frame fields + a consensus dict for stable readings.
+        Two extraction modes:
+          - 'ocr' (default): tesseract over per-corner crops, then regex-parse.
+                  Fast and cheap. Best for clear, high-contrast overlays.
+          - 'vision': qwen2.5vl (via ollama) with a structured-JSON prompt.
+                  Slower (~10s/frame) but far more accurate on FLIR HUDs where
+                  tesseract struggles (anti-aliased fonts, low-contrast IR).
+
+        Two sampling modes:
+          - single frame: pass `at_seconds=T` to extract just that timestamp.
+          - sampled (default): samples `sample_count` frames evenly.
 
         Args:
             path: Video path (relative to UAP_DATA_DIR).
-            at_seconds: If set, OCR a single frame at this timestamp.
+            mode: 'ocr' (tesseract) or 'vision' (qwen2.5vl). Default 'ocr'.
+            at_seconds: If set, extract a single frame at this timestamp.
             sample_count: Frames to sample when at_seconds is None. Default 5.
-            width: Frame width in pixels for OCR. Larger = slower but better OCR.
-            regions: HUD region keys. Defaults to all corners + top/bottom strips.
-                     Valid: top, bottom, top_left, top_right, bottom_left,
-                     bottom_right, full.
+            width: Frame width in pixels. Larger = slower but better extraction.
+            regions: HUD region keys for ocr mode (ignored in vision mode).
+                     Defaults to all corners + top/bottom strips. Valid: top,
+                     bottom, top_left, top_right, bottom_left, bottom_right, full.
+            vision_model: Override OLLAMA_HUD_MODEL for vision mode (e.g. switch
+                          to 'llama3.2-vision:11b' to A/B against the default).
         """
         return await flir_tools.flir_hud_ocr(
             cfg, corpus, path,
+            mode=mode,
             at_seconds=at_seconds,
             sample_count=sample_count,
             width=width,
             regions=regions,
+            vision_model=vision_model,
         )
 
     return mcp, cfg, corpus

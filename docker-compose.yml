@@ -11,6 +11,9 @@ services:
       OLLAMA_HOST: ${OLLAMA_HOST:-http://192.168.6.56:11434}
       OLLAMA_TEXT_MODEL: ${OLLAMA_TEXT_MODEL:-qwq:32b}
       OLLAMA_VISION_MODEL: ${OLLAMA_VISION_MODEL:-llama3.2-vision:11b}
+      # qwen2.5vl is markedly better at structured FLIR-HUD extraction than
+      # llama3.2-vision; used by flir_hud_ocr(mode="vision").
+      OLLAMA_HUD_MODEL: ${OLLAMA_HUD_MODEL:-qwen2.5vl:7b}
       OLLAMA_TIMEOUT: ${OLLAMA_TIMEOUT:-300}
       # Container-internal paths — fixed. The host-side path is controlled by
       # UAP_HOST_DATA_DIR (used only as the bind-mount source below).
@@ -20,4 +23,7 @@ services:
       UAP_PORT: ${UAP_PORT:-3260}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     volumes:
-      - ${UAP_HOST_DATA_DIR:-/srv/uap-data}:/srv/uap-data
+      # Default points at the actual corpus location on zaphod so a missing
+      # .env file does NOT silently fall back to an empty /srv/uap-data and
+      # break the corpus mount (regression learned 2026-05-22).
+      - ${UAP_HOST_DATA_DIR:-/home/zaphod-beeblebox/uap-data}:/srv/uap-data
