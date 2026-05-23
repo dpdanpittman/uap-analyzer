@@ -263,3 +263,61 @@ def test_flir_normalize_vision_fov_zoom_token_uppercased():
     assert _normalize_vision_fields({"zoom": "nar"})["zoom"] == "NAR"
     assert _normalize_vision_fields({"zoom": "med"})["zoom"] == "MED"
     assert _normalize_vision_fields({"zoom": "x10"})["zoom"] == "x10"
+
+
+# ---------------------------------------------------------------------------
+# v0.3.0 — audio transcription surface
+# ---------------------------------------------------------------------------
+
+
+def test_transcribe_audio_rejects_unknown_model(tmp_path: Path, monkeypatch):
+    """Unknown whisper model is rejected with a useful error before any I/O."""
+    import asyncio
+
+    from uap_analyzer.config import Config
+    from uap_analyzer.corpus import Corpus
+    from uap_analyzer.tools.audio import transcribe_audio
+
+    monkeypatch.setenv("UAP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("UAP_CACHE_DIR", str(tmp_path / "cache"))
+    (tmp_path / "cache").mkdir()
+    (tmp_path / "fake.mp4").write_bytes(b"\x00")
+    cfg = Config.from_env()
+    corpus = Corpus(cfg.data_dir, cfg.cache_dir)
+
+    with pytest.raises(ValueError, match="unknown whisper model"):
+        asyncio.run(
+            transcribe_audio(cfg, corpus, "fake.mp4", model="not-a-model")
+        )
+
+
+def test_transcribe_audio_rejects_unknown_compute_type(tmp_path: Path, monkeypatch):
+    """Invalid WHISPER_COMPUTE_TYPE env is rejected loudly."""
+    import asyncio
+
+    from uap_analyzer.config import Config
+    from uap_analyzer.corpus import Corpus
+    from uap_analyzer.tools.audio import transcribe_audio
+
+    monkeypatch.setenv("UAP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("UAP_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("WHISPER_COMPUTE_TYPE", "fp99_super_fast")
+    (tmp_path / "cache").mkdir()
+    (tmp_path / "fake.mp4").write_bytes(b"\x00")
+    cfg = Config.from_env()
+    corpus = Corpus(cfg.data_dir, cfg.cache_dir)
+
+    with pytest.raises(ValueError, match="WHISPER_COMPUTE_TYPE"):
+        asyncio.run(transcribe_audio(cfg, corpus, "fake.mp4"))
+
+
+def test_whisper_valid_models_includes_default(tmp_path: Path, monkeypatch):
+    """The default base.en must always be in VALID_MODELS."""
+    from uap_analyzer.config import Config
+    from uap_analyzer.tools.audio import VALID_COMPUTE_TYPES, VALID_MODELS
+
+    monkeypatch.setenv("UAP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("UAP_CACHE_DIR", str(tmp_path / "cache"))
+    cfg = Config.from_env()
+    assert cfg.whisper_model in VALID_MODELS
+    assert cfg.whisper_compute_type in VALID_COMPUTE_TYPES

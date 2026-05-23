@@ -15,6 +15,10 @@ services:
       # llama3.2-vision; used by flir_hud_ocr(mode="vision").
       OLLAMA_HUD_MODEL: ${OLLAMA_HUD_MODEL:-qwen2.5vl:7b}
       OLLAMA_TIMEOUT: ${OLLAMA_TIMEOUT:-300}
+      # faster-whisper (audio transcription). base.en is the default; bump
+      # to small.en/medium.en for jargon-heavy clips. int8 on CPU is fine.
+      WHISPER_MODEL: ${WHISPER_MODEL:-base.en}
+      WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-int8}
       # Container-internal paths — fixed. The host-side path is controlled by
       # UAP_HOST_DATA_DIR (used only as the bind-mount source below).
       UAP_DATA_DIR: /srv/uap-data

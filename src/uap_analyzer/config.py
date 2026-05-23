@@ -16,6 +16,8 @@ class Config:
     ollama_vision_model: str
     ollama_hud_model: str
     ollama_timeout: int
+    whisper_model: str
+    whisper_compute_type: str
     host: str
     port: int
     log_level: str
@@ -38,6 +40,12 @@ class Config:
             # specifically by flir_hud_ocr(mode="vision") for field-level extraction.
             ollama_hud_model=os.environ.get("OLLAMA_HUD_MODEL", "qwen2.5vl:7b"),
             ollama_timeout=int(os.environ.get("OLLAMA_TIMEOUT", "300")),
+            # faster-whisper config — `base.en` is the sweet spot for CPU
+            # inference on English UAP briefings (~4× realtime). Switch to
+            # `small.en` or `medium.en` for jargon-heavy clips. `int8` on CPU
+            # halves memory + cuts latency 2× with negligible accuracy loss.
+            whisper_model=os.environ.get("WHISPER_MODEL", "base.en"),
+            whisper_compute_type=os.environ.get("WHISPER_COMPUTE_TYPE", "int8"),
             host=os.environ.get("UAP_HOST", "0.0.0.0"),
             port=int(os.environ.get("UAP_PORT", "3260")),
             log_level=os.environ.get("LOG_LEVEL", "INFO"),

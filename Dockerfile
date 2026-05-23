@@ -31,5 +31,9 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 ENV PYTHONUNBUFFERED=1
 ENV UAP_DATA_DIR=/srv/uap-data
 ENV UAP_CACHE_DIR=/srv/uap-data/.cache
+# Point faster-whisper's HuggingFace cache into the bind-mounted cache dir so
+# model weights (base.en ~75MB, small.en ~250MB, etc.) persist across rebuilds.
+ENV HF_HOME=/srv/uap-data/.cache/hf
+ENV HF_HUB_DISABLE_TELEMETRY=1
 
 CMD ["python", "-m", "uap_analyzer"]

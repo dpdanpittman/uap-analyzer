@@ -1,6 +1,6 @@
 [project]
 name = "uap-analyzer"
-version = "0.2.1"
+version = "0.3.0"
 description = "MCP server for analyzing UAP / Department of War release material (videos + PDFs + photos)"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -26,6 +26,11 @@ dependencies = [
     "Pillow>=10.4.0",
     # ffmpeg wrapper (we mostly shell out, but this is handy)
     "ffmpeg-python>=0.2.0",
+    # Audio transcription — faster-whisper uses CTranslate2 (CPU-friendly,
+    # ~2× wall-clock vs openai/whisper, no torch dep). Models auto-download
+    # to HF_HOME on first use; we point HF_HOME at the cache dir in the
+    # Dockerfile so models persist across container rebuilds.
+    "faster-whisper>=1.0.0",
     # Utility
     "pydantic>=2.7",
 ]

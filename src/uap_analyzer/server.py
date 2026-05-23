@@ -10,6 +10,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 
 from .config import Config
 from .corpus import Corpus, serialize_item
+from .tools import audio as audio_tools
 from .tools import flir as flir_tools
 from .tools import image as image_tools
 from .tools import pdf as pdf_tools
@@ -328,6 +329,55 @@ def build_server(cfg: Config | None = None) -> tuple[FastMCP, Config, Corpus]:
             width=width,
             regions=regions,
             vision_model=vision_model,
+        )
+
+    # -----------------------------------------------------------------------
+    # transcribe_audio
+    # -----------------------------------------------------------------------
+    @mcp.tool()
+    async def transcribe_audio(
+        path: str,
+        model: str | None = None,
+        language: str | None = None,
+        initial_prompt: str | None = None,
+        beam_size: int = 5,
+        vad_filter: bool = True,
+        max_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        """Transcribe a video or audio file via faster-whisper (CPU, int8).
+
+        The UAP corpus is mostly video with audio tracks (debriefings, press
+        conferences, news segments). This tool extracts the audio, runs it
+        through whisper, and returns timestamped segments + full text. Once
+        transcripts exist, search_corpus can find them via FTS5 too.
+
+        Models auto-download to HF_HOME on first use (~30-90s for base/small);
+        cached forever after. Default model is base.en — fast and good on
+        English UAP briefings; bump to small.en or medium.en for clips with
+        heavy technical jargon.
+
+        Args:
+            path: Video or audio path (relative to UAP_DATA_DIR).
+            model: Override WHISPER_MODEL. e.g. "small.en", "medium.en",
+                   "distil-large-v3". See faster-whisper docs.
+            language: ISO code (e.g. "en"). None = auto-detect.
+            initial_prompt: Bias the decoder with vocabulary hints. Useful
+                            for technical jargon — pass something like
+                            "ATFLIR, AIM-9X, FLIR, AAQ-28, sortie" to seed
+                            domain vocab.
+            beam_size: Decoder beam width (default 5).
+            vad_filter: Skip silent stretches via voice-activity detection.
+            max_seconds: Cap transcription at this duration. Useful for
+                         previewing long press conferences.
+        """
+        return await audio_tools.transcribe_audio(
+            cfg, corpus, path,
+            model=model,
+            language=language,
+            initial_prompt=initial_prompt,
+            beam_size=beam_size,
+            vad_filter=vad_filter,
+            max_seconds=max_seconds,
         )
 
     return mcp, cfg, corpus
