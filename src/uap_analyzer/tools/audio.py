@@ -35,6 +35,7 @@ from typing import Any
 
 from ..config import Config
 from ..corpus import Corpus
+from ._common import CACHE_VERSION, hash_key
 
 log = logging.getLogger(__name__)
 
@@ -115,15 +116,8 @@ def _get_model(model_name: str, compute_type: str):
         return model
 
 
-def _hash_key(*parts: Any) -> str:
-    """Hash the params tuple into a stable cache-key fragment.
-
-    Replaces the previous '|'-separated concatenation which was vulnerable to
-    collision spoofing across distinct param tuples that string-equal once
-    joined. (Tribunal sec-F-sec-005.)
-    """
-    raw = "|".join(str(p) for p in parts)
-    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+# `_hash_key` consolidated in tools/_common.py for v0.4.2 (adversary A-008).
+_hash_key = hash_key
 
 
 async def transcribe_audio(
@@ -179,7 +173,7 @@ async def transcribe_audio(
     # (Tribunal sec-F-sec-007.)
     prompt_h = hashlib.sha256((initial_prompt or "").encode()).hexdigest()[:8]
     key_h = _hash_key(
-        "v2",
+        CACHE_VERSION,
         model_name,
         cfg.whisper_compute_type,
         language or "auto",
@@ -188,7 +182,7 @@ async def transcribe_audio(
         repr(max_seconds) if max_seconds is not None else "none",
         prompt_h if initial_prompt else "noinit",
     )
-    cache_key = f"v2|{key_h}"
+    cache_key = f"{CACHE_VERSION}|{key_h}"
     cached = corpus.get_cached(rel_path, "transcribe_audio", "default", cache_key)
     if cached:
         return cached

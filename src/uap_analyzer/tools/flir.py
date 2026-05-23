@@ -27,20 +27,13 @@ from typing import Any
 
 from ..config import Config
 from ..corpus import Corpus
+from ._common import CACHE_VERSION, VALID_VISION_MODELS, hash_key
 
 # Vision-model whitelist for the `vision_model` arg passed to flir_hud_ocr
-# (mode="vision"). Sibling tools (transcribe_audio, detect_objects) gate their
-# model parameter against an enum — this one didn't, which let a client
-# inflate the cache and the model-cache via arbitrary names. (Tribunal sec-F-sec-002.)
-VALID_HUD_MODELS = frozenset({
-    "qwen2.5vl:7b",
-    "qwen2.5vl:32b",
-    "qwen2.5vl:72b",
-    "qwen2-vl:7b",
-    "llama3.2-vision:11b",
-    "llama3.2-vision:90b",
-    "minicpm-v:8b",
-})
+# (mode="vision"). v0.4.2 consolidates with image.py's whitelist
+# (adversary A-003) via the shared VALID_VISION_MODELS in tools/_common.py.
+# The alias `VALID_HUD_MODELS` is kept for back-compat with existing imports.
+VALID_HUD_MODELS = VALID_VISION_MODELS
 
 log = logging.getLogger(__name__)
 
@@ -428,18 +421,26 @@ async def flir_hud_ocr(
         raise FileNotFoundError(rel_path)
 
     # Cache key folds in every output-affecting param via hash (sec-F-sec-005).
+    # v0.4.2: includes a hash of FLIR_HUD_VISION_PROMPT so a future prompt
+    # revision invalidates cleanly (adversary A-005, parallel to audio's
+    # initial_prompt and image's used_prompt hashing). CACHE_VERSION shared
+    # with audio/detect (adversary A-007).
     region_key = ",".join(sorted(use_regions))
     model_key = resolved_vision_model or "n/a"
+    prompt_h = (
+        hashlib.sha256(FLIR_HUD_VISION_PROMPT.encode()).hexdigest()[:8]
+        if mode == "vision" else "noprompt"
+    )
     if at_seconds is not None:
-        key_h = hashlib.sha256(
-            "|".join(("v3", mode, f"t{at_seconds:.2f}", str(width), region_key, model_key)).encode()
-        ).hexdigest()[:16]
-        cache_key = f"v3|m{mode}|t{at_seconds:.2f}|{key_h}"
+        key_h = hash_key(
+            CACHE_VERSION, mode, f"t{at_seconds:.2f}", width, region_key, model_key, prompt_h,
+        )
+        cache_key = f"{CACHE_VERSION}|m{mode}|t{at_seconds:.2f}|{key_h}"
     else:
-        key_h = hashlib.sha256(
-            "|".join(("v3", mode, f"n{sample_count}", str(width), region_key, model_key)).encode()
-        ).hexdigest()[:16]
-        cache_key = f"v3|m{mode}|n{sample_count}|{key_h}"
+        key_h = hash_key(
+            CACHE_VERSION, mode, f"n{sample_count}", width, region_key, model_key, prompt_h,
+        )
+        cache_key = f"{CACHE_VERSION}|m{mode}|n{sample_count}|{key_h}"
     cached = corpus.get_cached(rel_path, "flir_hud_ocr", mode, cache_key)
     if cached:
         return cached

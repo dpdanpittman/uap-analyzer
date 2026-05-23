@@ -4,18 +4,20 @@ MCP server that analyzes UAP / Department of War release material. Offloads heav
 
 ## What it does
 
-| Tool               | Status                     | Purpose                                                                                         |
-| ------------------ | -------------------------- | ----------------------------------------------------------------------------------------------- |
-| `list_corpus`      | ✅ v1                      | List indexed videos / PDFs / photos with metadata                                               |
-| `analyze_video`    | ✅ v1                      | ffprobe metadata + frame sampling + vision-describe (qwen2-vl)                                  |
-| `extract_frame`    | ✅ v1                      | Pull a single frame at a timestamp                                                              |
-| `analyze_pdf`      | ✅ v1                      | pdfplumber text + tesseract OCR fallback + summary via local text model                         |
-| `describe_image`   | ✅ v1                      | Vision-describe any image via ollama qwen2-vl                                                   |
-| `search_corpus`    | ✅ v1                      | Full-text search across indexed PDFs (sqlite-fts5, bm25 ranking, FTS5 syntax)                   |
-| `index_corpus`     | ✅ v1                      | Bulk-index PDFs (with OCR fallback) into the search index                                       |
-| `flir_hud_ocr`     | ✅ v0.2.1                  | Extract HUD overlay fields. Two modes: `ocr` (tesseract, fast) / `vision` (qwen2.5vl, accurate) |
-| `transcribe_audio` | ✅ v0.3.0                  | Speech-to-text via faster-whisper (CPU, int8). Segments + full text + auto language detect.     |
-| `detect_objects`   | ✅ **v0.4.0** (2026-05-22) | YOLOv8/v11 object detection per frame. CPU torch, weights cached in bind mount.                 |
+| Tool               | Status    | Purpose                                                                                         |
+| ------------------ | --------- | ----------------------------------------------------------------------------------------------- |
+| `list_corpus`      | ✅ v1     | List indexed videos / PDFs / photos with metadata                                               |
+| `analyze_video`    | ✅ v1     | ffprobe metadata + frame sampling + vision-describe (qwen2-vl)                                  |
+| `extract_frame`    | ✅ v1     | Pull a single frame at a timestamp                                                              |
+| `analyze_pdf`      | ✅ v1     | pdfplumber text + tesseract OCR fallback + summary via local text model                         |
+| `describe_image`   | ✅ v1     | Vision-describe any image via ollama qwen2-vl                                                   |
+| `search_corpus`    | ✅ v1     | Full-text search across indexed PDFs (sqlite-fts5, bm25 ranking, FTS5 syntax)                   |
+| `index_corpus`     | ✅ v1     | Bulk-index PDFs (with OCR fallback) into the search index                                       |
+| `flir_hud_ocr`     | ✅ v0.2.1 | Extract HUD overlay fields. Two modes: `ocr` (tesseract, fast) / `vision` (qwen2.5vl, accurate) |
+| `transcribe_audio` | ✅ v0.3.0 | Speech-to-text via faster-whisper (CPU, int8). Segments + full text + auto language detect.     |
+| `detect_objects`   | ✅ v0.4.0 | YOLOv8/v11 object detection per frame. CPU torch, weights cached in bind mount.                 |
+
+**Current release:** `v0.4.2` (2026-05-22) — hardening pass driven by two rounds of tribunal review. v0.4.1 closed 12 must-fix items from the first lens trio; v0.4.2 closes 10 more found by the adversary stage (NaN bypass on bounds, unbounded v0.1 tool surface, `describe_image` model whitelist, IMAGE_EXTS expansion, prompt-in-cache-key, ZAPHOD_HOST validation, cache-version unification, shared `hash_key` helper). See `.tribunal/reports/` for the audit trail.
 
 ## Architecture
 

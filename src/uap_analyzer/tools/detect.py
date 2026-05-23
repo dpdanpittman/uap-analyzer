@@ -22,7 +22,6 @@ Conventions per CLAUDE.md:
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import logging
 import os
 import threading
@@ -32,6 +31,7 @@ from typing import Any
 
 from ..config import Config
 from ..corpus import Corpus
+from ._common import CACHE_VERSION, hash_key
 
 log = logging.getLogger(__name__)
 
@@ -53,7 +53,13 @@ VALID_MODELS = (
 )
 
 # Extensions YOLO can run on directly without a frame-extract step.
-IMAGE_EXTS = frozenset({".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"})
+# v0.4.2: added TIFF, HEIC, AVIF (adversary A-004). TIFF is the canonical
+# distribution format for declassified military FLIR stills; HEIC and AVIF
+# are increasingly common from modern phone cameras (FBI photo material).
+IMAGE_EXTS = frozenset({
+    ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif",
+    ".tiff", ".tif", ".heic", ".heif", ".avif",
+})
 
 
 def _model_filename(name: str) -> str:
@@ -114,15 +120,10 @@ def _get_model(cfg: Config, name: str):
         return model
 
 
-def _hash_key(*parts: Any) -> str:
-    """Hash the params tuple into a stable cache-key fragment.
-
-    Replaces the previous '|'-separated concatenation which was vulnerable to
-    collision spoofing across distinct param tuples that string-equal once
-    joined. (Tribunal sec-F-sec-005.)
-    """
-    raw = "|".join(str(p) for p in parts)
-    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+# `_hash_key` was duplicated across audio/detect/flir in v0.4.1 and had
+# already diverged (adversary A-007 / A-008 — flir was at v3 while audio +
+# detect were at v2). Consolidated in tools/_common.py for v0.4.2.
+_hash_key = hash_key
 
 
 def _aggregate_labels(per_frame: list[dict[str, Any]]) -> dict[str, Any]:
@@ -195,19 +196,20 @@ async def detect_objects(
 
     # Cache key folds in every output-affecting param via hash, NOT raw '|'
     # concat (sec-F-sec-005). class_key is sorted-tuple for stable ordering.
+    # CACHE_VERSION centralized in _common (adversary A-007).
     class_key = ",".join(sorted(classes)) if classes else "all"
     if at_seconds is not None:
         key_h = _hash_key(
-            "v2", model, f"t{at_seconds:.2f}",
+            CACHE_VERSION, model, f"t{at_seconds:.2f}",
             confidence, iou, width, class_key, is_image,
         )
-        cache_key = f"v2|t{at_seconds:.2f}|{key_h}"
+        cache_key = f"{CACHE_VERSION}|t{at_seconds:.2f}|{key_h}"
     else:
         key_h = _hash_key(
-            "v2", model, f"n{sample_count}",
+            CACHE_VERSION, model, f"n{sample_count}",
             confidence, iou, width, class_key, is_image,
         )
-        cache_key = f"v2|n{sample_count}|{key_h}"
+        cache_key = f"{CACHE_VERSION}|n{sample_count}|{key_h}"
     cached = corpus.get_cached(rel_path, "detect_objects", "default", cache_key)
     if cached:
         return cached

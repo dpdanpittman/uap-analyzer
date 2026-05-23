@@ -9,6 +9,7 @@ from typing import Any
 
 from ..config import Config
 from ..corpus import Corpus
+from ._common import VALID_VISION_MODELS
 from .ollama_client import OllamaClient
 
 log = logging.getLogger(__name__)
@@ -71,6 +72,15 @@ async def describe_image(
     """Vision-describe an image. Accepts a path either under data_dir
     (a corpus photo) OR under cache_dir (an extracted frame).
     """
+    # Adversary A-003: describe_image accepted arbitrary client-supplied model
+    # names — same shape that sec-F-sec-002 closed for flir.py's vision_model.
+    # Whitelist before any I/O.
+    model_id = model or cfg.ollama_vision_model
+    if model_id not in VALID_VISION_MODELS:
+        raise ValueError(
+            f"unknown model {model_id!r}; valid: {sorted(VALID_VISION_MODELS)}"
+        )
+
     abs_path = _resolve_image_path(cfg, rel_path)
     if not abs_path.is_file():
         raise FileNotFoundError(rel_path)
@@ -80,8 +90,7 @@ async def describe_image(
     # Cache key: prompt content + model + the image's content hash.
     img_hash = hashlib.sha256(abs_path.read_bytes()).hexdigest()[:16]
     prompt_hash = hashlib.sha256(used_prompt.encode()).hexdigest()[:12]
-    model_id = model or cfg.ollama_vision_model
-    params_hash = f"v1|{img_hash}|{prompt_hash}|{model_id}"
+    params_hash = f"v2|{img_hash}|{prompt_hash}|{model_id}"
 
     # Cache by the path the user supplied (so list_corpus identifies it).
     cached = corpus.get_cached(rel_path, "describe_image", "vision", params_hash)

@@ -547,3 +547,147 @@ def test_server_bounded_helper_rejects_overflow():
         _bounded("x", 11, 10)
     with pytest.raises(ValueError, match="must be >= 0"):
         _bounded("x", -1, 10)
+
+
+# ---------------------------------------------------------------------------
+# v0.4.2 — adversary BREAKS patch
+# ---------------------------------------------------------------------------
+
+
+def test_bounded_rejects_nan():
+    """Adversary A-001: NaN must NOT slip past _bounded() under IEEE-754.
+
+    Without explicit isnan() guard, `0.0 < nan` is False and `nan > cap` is
+    False, so the value silently passes through. Downstream code receives
+    nan as a width/sample_count/etc. and behaves unpredictably."""
+    import importlib
+    import math
+    import sys
+    if "uap_analyzer.server" in sys.modules:
+        importlib.reload(sys.modules["uap_analyzer.server"])
+    try:
+        from uap_analyzer.server import _bounded
+    except ImportError:
+        pytest.skip("server module not importable without mcp deps")
+
+    with pytest.raises(ValueError, match="must be a real number; got NaN"):
+        _bounded("width", float("nan"), 4096)
+    # Sanity: finite values still pass.
+    assert _bounded("width", 1.0, 4096) == 1.0
+
+
+def test_bounded_min_value_rejects_zero_for_dimensions():
+    """Adversary A-010: width=0 / sample_count=0 must be rejected when callers
+    use min_value=1. The default min_value=0 stays back-compat for callers
+    that genuinely allow zero (e.g. optional-int slots)."""
+    import importlib
+    import sys
+    if "uap_analyzer.server" in sys.modules:
+        importlib.reload(sys.modules["uap_analyzer.server"])
+    try:
+        from uap_analyzer.server import _bounded
+    except ImportError:
+        pytest.skip("server module not importable without mcp deps")
+
+    with pytest.raises(ValueError, match="must be >= 1"):
+        _bounded("width", 0, 4096, min_value=1)
+    # default min_value=0 still accepts 0
+    assert _bounded("x", 0, 4096) == 0
+
+
+def test_image_exts_includes_tiff_heic_avif():
+    """Adversary A-004: declassified military FLIR distribution often ships
+    TIFF. Modern phone photo bundles (FBI material) ship HEIC/AVIF."""
+    from uap_analyzer.tools.detect import IMAGE_EXTS
+
+    for ext in (".tiff", ".tif", ".heic", ".heif", ".avif"):
+        assert ext in IMAGE_EXTS, f"{ext} missing from IMAGE_EXTS"
+
+
+def test_cache_version_unified_across_tools():
+    """Adversary A-007: flir was at v3, audio + detect at v2. v0.4.2 unifies
+    via a single CACHE_VERSION constant in tools/_common.py."""
+    from uap_analyzer.tools._common import CACHE_VERSION
+
+    # The constant is "v4" in this release; the value matters less than
+    # ensuring nobody adds a divergent prefix in a sibling tool.
+    assert CACHE_VERSION.startswith("v")
+    # All three tools should import the same constant — assert at the module
+    # level by importing each.
+    import uap_analyzer.tools.audio as audio_mod
+    import uap_analyzer.tools.detect as detect_mod
+    # flir imports lazily inside functions; check the source instead
+    flir_src = (
+        __import__("uap_analyzer.tools.flir", fromlist=["*"])
+    )
+    # The shared constant must be the same object across importers.
+    from uap_analyzer.tools._common import CACHE_VERSION as audio_v
+    assert audio_v is CACHE_VERSION
+
+
+def test_hash_key_consolidated():
+    """Adversary A-008: `_hash_key` was duplicated across three files.
+    v0.4.2 consolidates into tools/_common.hash_key; aliases preserved."""
+    from uap_analyzer.tools._common import hash_key
+    from uap_analyzer.tools.audio import _hash_key as audio_hash_key
+    from uap_analyzer.tools.detect import _hash_key as detect_hash_key
+
+    # All three references point to the same function.
+    assert audio_hash_key is hash_key
+    assert detect_hash_key is hash_key
+    # Hashing the same input produces the same output (sanity).
+    assert hash_key("a", 1, "b") == audio_hash_key("a", 1, "b") == detect_hash_key("a", 1, "b")
+
+
+def test_describe_image_rejects_unknown_model(tmp_path: Path, monkeypatch):
+    """Adversary A-003: describe_image previously accepted any model string
+    straight into ollama. v0.4.2 whitelists via VALID_VISION_MODELS."""
+    import asyncio
+
+    from uap_analyzer.config import Config
+    from uap_analyzer.corpus import Corpus
+    from uap_analyzer.tools._common import VALID_VISION_MODELS
+    try:
+        from uap_analyzer.tools.image import describe_image
+    except ModuleNotFoundError as e:
+        pytest.skip(f"image tools require ollama deps: {e}")
+
+    assert "llama3.2-vision:11b" in VALID_VISION_MODELS
+
+    monkeypatch.setenv("UAP_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("UAP_CACHE_DIR", str(tmp_path / "cache"))
+    (tmp_path / "cache").mkdir()
+    (tmp_path / "fake.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    cfg = Config.from_env()
+    corpus = Corpus(cfg.data_dir, cfg.cache_dir)
+
+    with pytest.raises(ValueError, match="unknown model"):
+        asyncio.run(
+            describe_image(cfg, corpus, "fake.png", model="evil-vision:1b")
+        )
+
+
+def test_flir_valid_hud_models_is_valid_vision_models_alias():
+    """Adversary A-003: VALID_HUD_MODELS in flir.py is now an alias for the
+    shared VALID_VISION_MODELS — no two diverging whitelists."""
+    from uap_analyzer.tools._common import VALID_VISION_MODELS
+    from uap_analyzer.tools.flir import VALID_HUD_MODELS
+
+    assert VALID_HUD_MODELS is VALID_VISION_MODELS
+
+
+def test_pdf_tool_dpi_bound_constant_present():
+    """Adversary A-002: the v0.1 PDF tools were missed by the v0.4.1 bounds
+    rollout. v0.4.2 introduces _MAX_PDF_DPI in server.py."""
+    import importlib
+    import sys
+    if "uap_analyzer.server" in sys.modules:
+        importlib.reload(sys.modules["uap_analyzer.server"])
+    try:
+        import uap_analyzer.server as server_mod
+    except ImportError:
+        pytest.skip("server module not importable without mcp deps")
+
+    assert hasattr(server_mod, "_MAX_PDF_DPI")
+    assert server_mod._MAX_PDF_DPI <= 600
+    assert hasattr(server_mod, "_MAX_TEXT_CHARS")

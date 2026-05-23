@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -20,20 +21,40 @@ from .tools import video as video_tools
 # MCP-boundary clamps. The new v0.2.x-v0.4.0 inference tools accept
 # numerically-bounded params from clients; without server-side caps a single
 # call can burn arbitrary CPU / disk / model-call budget on a LAN box that
-# has no auth. (Tribunal sec-F-sec-001.) Caps are 1-2 orders of magnitude
-# above realistic use so an honest client never hits them.
+# has no auth. (Tribunal sec-F-sec-001 + adversary A-002 for the v0.1 surface.)
+# Caps are 1-2 orders of magnitude above realistic use so an honest client
+# never hits them.
 _MAX_SAMPLE_COUNT = 100
 _MAX_WIDTH = 4096
 _MAX_BEAM_SIZE = 20
 _MAX_MAX_SECONDS = 86400  # 24h transcript ceiling
 _MAX_FRAME_AT_SECONDS = 86400
+_MAX_PDF_DPI = 600              # tesseract default is 200; 600 covers fine OCR
+_MAX_PDF_PAGE_INDEX = 100_000   # arbitrary cap on the largest pdf we'd touch
+_MAX_TEXT_CHARS = 10_000_000    # 10 MB of extracted text per call
 
 
-def _bounded(name: str, value: int | float | None, cap: int | float) -> int | float | None:
+def _bounded(
+    name: str,
+    value: int | float | None,
+    cap: int | float,
+    *,
+    min_value: int | float = 0,
+) -> int | float | None:
+    """Validate a client-supplied numeric is in [min_value, cap] and not NaN.
+
+    NaN rejection added in v0.4.2 (adversary A-001): under IEEE-754,
+    `0.0 < nan` and `nan > cap` are both False, so the previous bounds
+    check silently let NaN through. `width=0` rejection (adversary A-010)
+    via the `min_value` parameter, defaulted to 0 for backward-compat with
+    optional-int callers and raised to 1 at site for dimension-like args.
+    """
     if value is None:
         return None
-    if value < 0:
-        raise ValueError(f"{name} must be >= 0; got {value}")
+    if isinstance(value, float) and math.isnan(value):
+        raise ValueError(f"{name} must be a real number; got NaN")
+    if value < min_value:
+        raise ValueError(f"{name} must be >= {min_value}; got {value}")
     if value > cap:
         raise ValueError(f"{name} must be <= {cap}; got {value}")
     return value
@@ -106,8 +127,8 @@ def build_server(cfg: Config | None = None) -> tuple[FastMCP, Config, Corpus]:
             width: For mode='frames'/'describe', output frame width in pixels. Default 800.
             prompt: For mode='describe', override the FLIR-tuned default prompt.
         """
-        _bounded("count", count, _MAX_SAMPLE_COUNT)
-        _bounded("width", width, _MAX_WIDTH)
+        _bounded("count", count, _MAX_SAMPLE_COUNT, min_value=1)
+        _bounded("width", width, _MAX_WIDTH, min_value=1)
         if mode == "metadata":
             return await video_tools.analyze_video_metadata(cfg, corpus, path)
         if mode == "frames":
@@ -141,9 +162,12 @@ def build_server(cfg: Config | None = None) -> tuple[FastMCP, Config, Corpus]:
             return_base64: If true, include base64 JPEG in response.
         """
         _bounded("at_seconds", at_seconds, _MAX_FRAME_AT_SECONDS)
-        _bounded("width", width, _MAX_WIDTH)
+        _bounded("width", width, _MAX_WIDTH, min_value=1)
         if at_percent is not None and not (0.0 <= at_percent <= 1.0):
             raise ValueError(f"at_percent must be in [0, 1]; got {at_percent}")
+        # at_percent NaN check (adversary A-001 covers _bounded path; this is the parallel guard)
+        if at_percent is not None and isinstance(at_percent, float) and math.isnan(at_percent):
+            raise ValueError("at_percent must be a real number; got NaN")
         return await video_tools.extract_frame(
             cfg, corpus, path,
             at_seconds=at_seconds, at_percent=at_percent,
@@ -198,6 +222,13 @@ def build_server(cfg: Config | None = None) -> tuple[FastMCP, Config, Corpus]:
             page_end: For text/ocr, 1-indexed last page (inclusive).
             dpi: For ocr, rasterization DPI. 200 is a good default; 300 is slower but cleaner.
         """
+        # Adversary A-002: the v0.1-era PDF tools were missed by the v0.4.1
+        # _bounded() rollout. dpi=10000 on a multi-page PDF allocates gigapixel
+        # images per page and OOMs the container. Cap aggressively.
+        _bounded("max_chars", max_chars, _MAX_TEXT_CHARS, min_value=1)
+        _bounded("page_start", page_start, _MAX_PDF_PAGE_INDEX, min_value=1)
+        _bounded("page_end", page_end, _MAX_PDF_PAGE_INDEX, min_value=1)
+        _bounded("dpi", dpi, _MAX_PDF_DPI, min_value=72)
         if mode == "metadata":
             return await pdf_tools.analyze_pdf_metadata(cfg, corpus, path)
         if mode == "text":
@@ -269,6 +300,8 @@ def build_server(cfg: Config | None = None) -> tuple[FastMCP, Config, Corpus]:
             force: Re-extract even if cached.
             ocr_fallback: If text yield is poor, also OCR.
         """
+        # Adversary A-002: bulk path multiplies max_chars by N items; tighter cap.
+        _bounded("max_chars", max_chars, _MAX_TEXT_CHARS, min_value=1)
         items = corpus.list(kind=kind)
         indexed = 0
         skipped = 0
@@ -349,8 +382,8 @@ def build_server(cfg: Config | None = None) -> tuple[FastMCP, Config, Corpus]:
             vision_model: Override OLLAMA_HUD_MODEL for vision mode (e.g. switch
                           to 'llama3.2-vision:11b' to A/B against the default).
         """
-        _bounded("sample_count", sample_count, _MAX_SAMPLE_COUNT)
-        _bounded("width", width, _MAX_WIDTH)
+        _bounded("sample_count", sample_count, _MAX_SAMPLE_COUNT, min_value=1)
+        _bounded("width", width, _MAX_WIDTH, min_value=1)
         _bounded("at_seconds", at_seconds, _MAX_FRAME_AT_SECONDS)
         return await flir_tools.flir_hud_ocr(
             cfg, corpus, path,
@@ -455,8 +488,8 @@ def build_server(cfg: Config | None = None) -> tuple[FastMCP, Config, Corpus]:
                    is 640; 1280 trades latency for a bit more small-object
                    recall.
         """
-        _bounded("sample_count", sample_count, _MAX_SAMPLE_COUNT)
-        _bounded("width", width, _MAX_WIDTH)
+        _bounded("sample_count", sample_count, _MAX_SAMPLE_COUNT, min_value=1)
+        _bounded("width", width, _MAX_WIDTH, min_value=1)
         _bounded("at_seconds", at_seconds, _MAX_FRAME_AT_SECONDS)
         if classes is not None and len(classes) > 80:
             raise ValueError("classes filter must have at most 80 entries (COCO size)")

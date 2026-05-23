@@ -35,6 +35,15 @@ case "${REMOTE_DIR}" in
         ;;
 esac
 
+# Validate ZAPHOD_HOST shape: must be `user@host` form. Prevents env-poisoning
+# from injecting ssh options (e.g. `-oProxyCommand=evil` would smuggle local
+# code execution through rsync's ssh transport). (Adversary A-006.)
+# Allowed character set: alphanum, dot, hyphen, underscore, exactly one @.
+if ! [[ "${HOST}" =~ ^[A-Za-z0-9._-]+@[A-Za-z0-9._-]+$ ]]; then
+    echo "ZAPHOD_HOST must be 'user@host' with only [A-Za-z0-9._-]; got: ${HOST}" >&2
+    exit 2
+fi
+
 DO_BUILD=1
 DO_RESTART=1
 for arg in "$@"; do
