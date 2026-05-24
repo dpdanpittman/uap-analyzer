@@ -17,7 +17,9 @@ MCP server that analyzes UAP / Department of War release material. Offloads heav
 | `transcribe_audio` | ✅ v0.3.0 | Speech-to-text via faster-whisper (CPU, int8). Segments + full text + auto language detect.     |
 | `detect_objects`   | ✅ v0.4.0 | YOLOv8/v11 object detection per frame. CPU torch, weights cached in bind mount.                 |
 
-**Current release:** `v0.4.2` (2026-05-22) — hardening pass driven by two rounds of tribunal review. v0.4.1 closed 12 must-fix items from the first lens trio; v0.4.2 closes 10 more found by the adversary stage (NaN bypass on bounds, unbounded v0.1 tool surface, `describe_image` model whitelist, IMAGE_EXTS expansion, prompt-in-cache-key, ZAPHOD_HOST validation, cache-version unification, shared `hash_key` helper). See `.tribunal/reports/` for the audit trail.
+**Current release:** `v0.4.3` (2026-05-24) — default `OLLAMA_VISION_MODEL` flipped from `llama3.2-vision:11b` to `qwen2.5vl:7b`. Triggered by `Release_2/DOD_111720765.mp4`, where llama3.2-vision both fabricated a confident negative (described a frame with a targeting reticle + aircraft as "clear thermal image of the ocean") and entered an infinite generation loop on a different frame; qwen2.5vl:7b correctly described 9 of 9 frames from the same clip. llama3.2-vision remains in `VALID_VISION_MODELS` for A/B comparison via the `model=` override. See `reports/dod_111720765_target_lock.md`.
+
+**Previous release:** `v0.4.2` (2026-05-22) — hardening pass driven by two rounds of tribunal review. v0.4.1 closed 12 must-fix items from the first lens trio; v0.4.2 closes 10 more found by the adversary stage (NaN bypass on bounds, unbounded v0.1 tool surface, `describe_image` model whitelist, IMAGE_EXTS expansion, prompt-in-cache-key, ZAPHOD_HOST validation, cache-version unification, shared `hash_key` helper). See `.tribunal/reports/` for the audit trail.
 
 ## Architecture
 

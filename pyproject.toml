@@ -1,6 +1,6 @@
 [project]
 name = "uap-analyzer"
-version = "0.4.2"
+version = "0.4.3"
 description = "MCP server for analyzing UAP / Department of War release material (videos + PDFs + photos)"
 readme = "README.md"
 requires-python = ">=3.11"

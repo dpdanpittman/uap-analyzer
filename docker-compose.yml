@@ -10,9 +10,12 @@ services:
     environment:
       OLLAMA_HOST: ${OLLAMA_HOST:-http://192.168.6.56:11434}
       OLLAMA_TEXT_MODEL: ${OLLAMA_TEXT_MODEL:-qwq:32b}
-      OLLAMA_VISION_MODEL: ${OLLAMA_VISION_MODEL:-llama3.2-vision:11b}
-      # qwen2.5vl is markedly better at structured FLIR-HUD extraction than
-      # llama3.2-vision; used by flir_hud_ocr(mode="vision").
+      # Default flipped in v0.4.3: qwen2.5vl:7b is the vision default for both
+      # describe and HUD paths. llama3.2-vision:11b was producing false-confident
+      # negatives ("clear thermal image of the ocean" for frames containing a
+      # reticle + aircraft) and on one frame entered an infinite generation loop.
+      # See reports/dod_111720765_target_lock.md for the trigger case.
+      OLLAMA_VISION_MODEL: ${OLLAMA_VISION_MODEL:-qwen2.5vl:7b}
       OLLAMA_HUD_MODEL: ${OLLAMA_HUD_MODEL:-qwen2.5vl:7b}
       OLLAMA_TIMEOUT: ${OLLAMA_TIMEOUT:-300}
       # faster-whisper (audio transcription). base.en is the default; bump

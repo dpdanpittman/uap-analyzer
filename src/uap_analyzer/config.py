@@ -35,9 +35,18 @@ class Config:
             cache_dir=cache_dir,
             ollama_host=os.environ.get("OLLAMA_HOST", "http://192.168.6.56:11434"),
             ollama_text_model=os.environ.get("OLLAMA_TEXT_MODEL", "qwq:32b"),
-            ollama_vision_model=os.environ.get("OLLAMA_VISION_MODEL", "llama3.2-vision:11b"),
-            # qwen2.5vl benchmarks better on structured-OCR than llama3.2-vision; used
-            # specifically by flir_hud_ocr(mode="vision") for field-level extraction.
+            # Default flipped in v0.4.3 from llama3.2-vision:11b to qwen2.5vl:7b.
+            # On heavily-quantized / redacted IR material (Release_2/DOD_111720765
+            # being the trigger case), llama3.2-vision:11b produced false-confident
+            # negatives ("clear thermal image of the ocean" for a frame containing
+            # a targeting reticle and aircraft-shape) and on one frame entered an
+            # infinite generation loop. qwen2.5vl:7b correctly described reticle,
+            # target lock, aircraft silhouette, and redaction masks on 9/9 frames
+            # from the same clip. See reports/dod_111720765_target_lock.md.
+            ollama_vision_model=os.environ.get("OLLAMA_VISION_MODEL", "qwen2.5vl:7b"),
+            # HUD model historically diverged from vision model because qwen2.5vl
+            # was the structured-OCR winner; with v0.4.3 they converge by default
+            # but the knob stays separate so future A/B work doesn't need a code change.
             ollama_hud_model=os.environ.get("OLLAMA_HUD_MODEL", "qwen2.5vl:7b"),
             ollama_timeout=int(os.environ.get("OLLAMA_TIMEOUT", "300")),
             # faster-whisper config — `base.en` is the sweet spot for CPU

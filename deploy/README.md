@@ -57,7 +57,7 @@ curl -sS http://192.168.6.56:3260/healthz | jq
 #   "status": "ok",
 #   "data_dir": "/srv/uap-data",
 #   "ollama_host": "http://192.168.6.56:11434",
-#   "vision_model": "qwen2-vl:7b",
+#   "vision_model": "qwen2.5vl:7b",
 #   "corpus_items": 290
 # }
 
@@ -76,11 +76,16 @@ claude mcp add --transport http uap-analyzer http://192.168.6.56:3260/mcp
 uap-analyzer uses three models, all served by the native ollama daemon on
 zaphod at `http://localhost:11434`:
 
-| Env var               | Default               | Used by                                            |
-| --------------------- | --------------------- | -------------------------------------------------- |
-| `OLLAMA_TEXT_MODEL`   | `qwq:32b`             | `analyze_pdf(mode="summary")`                      |
-| `OLLAMA_VISION_MODEL` | `llama3.2-vision:11b` | `describe_image`, `analyze_video(mode="describe")` |
-| `OLLAMA_HUD_MODEL`    | `qwen2.5vl:7b`        | `flir_hud_ocr(mode="vision")`                      |
+| Env var               | Default        | Used by                                            |
+| --------------------- | -------------- | -------------------------------------------------- |
+| `OLLAMA_TEXT_MODEL`   | `qwq:32b`      | `analyze_pdf(mode="summary")`                      |
+| `OLLAMA_VISION_MODEL` | `qwen2.5vl:7b` | `describe_image`, `analyze_video(mode="describe")` |
+| `OLLAMA_HUD_MODEL`    | `qwen2.5vl:7b` | `flir_hud_ocr(mode="vision")`                      |
+
+> v0.4.3 flipped `OLLAMA_VISION_MODEL` from `llama3.2-vision:11b` to
+> `qwen2.5vl:7b`. `llama3.2-vision:11b` remains in the
+> `VALID_VISION_MODELS` whitelist if you want to A/B via the `model`
+> override on `describe_image` or `OLLAMA_VISION_MODEL` in `.env`.
 
 Pull a model via the HTTP API (the ollama CLI may not be on the deploy-user PATH):
 
