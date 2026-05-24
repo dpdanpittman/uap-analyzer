@@ -7,11 +7,11 @@ import Base from '../layouts/Base.astro';
 
     <section class="mb-12">
       <div class="flex items-center gap-3 mb-3">
-        <span class="stamp text-accent-green">// TOOL REFERENCE · v0.4.2</span>
+        <span class="stamp text-accent-green">// TOOL REFERENCE · v0.4.3</span>
       </div>
       <h1 class="text-4xl font-bold mb-4 leading-tight text-text">MCP tools</h1>
       <p class="text-base text-muted leading-relaxed max-w-2xl prose-body">
-        Ten tools the LLM session can call by name. All return text or structured JSON; raw media stays in the container. Original Phase 3 backlog (audio, HUD-OCR, object detection) shipped across the v0.2.x – v0.4.x releases. v0.4.1 + v0.4.2 closed 22 hardening findings surfaced by two rounds of tribunal review — see <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">.tribunal/reports/</code> in the repo for the audit trail.
+        Ten tools the LLM session can call by name. All return text or structured JSON; raw media stays in the container. Original Phase 3 backlog (audio, HUD-OCR, object detection) shipped across the v0.2.x – v0.4.x releases. v0.4.1 + v0.4.2 closed 22 hardening findings surfaced by two rounds of tribunal review — see <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">.tribunal/reports/</code> in the repo for the audit trail. v0.4.3 flipped the default vision model to <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">qwen2.5vl:7b</code> after a Release_2 frame where the prior default fabricated a confident negative on a redacted IR target lock — see <code class="text-xs bg-code-bg border border-code-border px-1 py-0.5 rounded text-accent">reports/dod_111720765_target_lock.md</code>.
       </p>
     </section>
 
@@ -20,7 +20,7 @@ import Base from '../layouts/Base.astro';
         <h2 class="text-2xl font-bold text-text">/// LIVE — 10 OPERATIONAL</h2>
         <span class="text-[10px] text-accent-green tracking-widest flex items-center gap-2 hidden sm:inline-flex">
           <span class="inline-block w-1.5 h-1.5 rounded-full bg-accent-green shadow-green-glow pulse-soft"></span>
-          v0.4.2 · 2026-05-22
+          v0.4.3 · 2026-05-24
         </span>
       </div>
       <div class="space-y-5">
